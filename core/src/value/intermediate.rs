@@ -6,10 +6,10 @@ use serde::{
     },
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::mem::{size_of, size_of_val};
+use std::collections::{HashMap, HashSet};
 
 /// Serde intermediate data.
-#[derive(Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Intermediate {
     Unit,
     Bool(bool),
@@ -165,13 +165,13 @@ impl Intermediate {
 
     pub fn total_bytesize(&self) -> usize {
         fn string_bytesize(v: &str) -> usize {
-            v.as_bytes().len() * size_of::<u8>()
+            v.as_bytes().len() * std::mem::size_of::<u8>()
         }
 
-        size_of_val(self)
+        std::mem::size_of_val(self)
             + match self {
                 Self::String(v) => string_bytesize(v),
-                Self::Bytes(v) => v.len() * size_of::<u8>(),
+                Self::Bytes(v) => v.len() * std::mem::size_of::<u8>(),
                 Self::Option(v) => v.as_ref().map(|v| v.total_bytesize()).unwrap_or_default(),
                 Self::UnitVariant(n, _) => string_bytesize(n),
                 Self::NewTypeStruct(v) => v.total_bytesize(),
@@ -198,80 +198,6 @@ impl Intermediate {
                 }
                 _ => 0,
             }
-    }
-}
-
-impl std::fmt::Debug for Intermediate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Unit => ().fmt(f),
-            Self::Bool(v) => v.fmt(f),
-            Self::I8(v) => v.fmt(f),
-            Self::I16(v) => v.fmt(f),
-            Self::I32(v) => v.fmt(f),
-            Self::I64(v) => v.fmt(f),
-            Self::I128(v) => v.fmt(f),
-            Self::U8(v) => v.fmt(f),
-            Self::U16(v) => v.fmt(f),
-            Self::U32(v) => v.fmt(f),
-            Self::U64(v) => v.fmt(f),
-            Self::U128(v) => v.fmt(f),
-            Self::F32(v) => v.fmt(f),
-            Self::F64(v) => v.fmt(f),
-            Self::Char(v) => v.fmt(f),
-            Self::String(v) => v.fmt(f),
-            Self::Bytes(v) => v.fmt(f),
-            Self::Option(v) => v.fmt(f),
-            Self::UnitStruct => f.write_str("?"),
-            Self::UnitVariant(n, i) => write!(f, "{} # {}", n, i),
-            Self::NewTypeStruct(v) => f.debug_tuple("?").field(v).finish(),
-            Self::NewTypeVariant(n, i, v) => {
-                f.debug_tuple(&format!("{} # {}", n, i)).field(v).finish()
-            }
-            Self::Seq(v) => f.debug_list().entries(v.iter()).finish(),
-            Self::Tuple(v) => {
-                let mut w = f.debug_tuple("");
-                for v in v {
-                    w.field(v);
-                }
-                w.finish()
-            }
-            Self::TupleStruct(v) => {
-                let mut w = f.debug_tuple("?");
-                for v in v {
-                    w.field(v);
-                }
-                w.finish()
-            }
-            Self::TupleVariant(n, i, v) => {
-                let mut w = f.debug_tuple(&format!("{} # {}", n, i));
-                for v in v {
-                    w.field(v);
-                }
-                w.finish()
-            }
-            Self::Map(v) => {
-                let mut w = f.debug_map();
-                for (k, v) in v {
-                    w.entry(k, v);
-                }
-                w.finish()
-            }
-            Self::Struct(v) => {
-                let mut w = f.debug_struct("?");
-                for (k, v) in v {
-                    w.field(k, v);
-                }
-                w.finish()
-            }
-            Self::StructVariant(n, i, v) => {
-                let mut w = f.debug_struct(&format!("{} # {}", n, i));
-                for (k, v) in v {
-                    w.field(k, v);
-                }
-                w.finish()
-            }
-        }
     }
 }
 
@@ -397,6 +323,18 @@ impl_from_wrap!(char, Char);
 impl_from_wrap!(String, String);
 impl_from_wrap!(Vec<u8>, Bytes);
 
+impl From<isize> for Intermediate {
+    fn from(v: isize) -> Self {
+        Self::I64(v as _)
+    }
+}
+
+impl From<usize> for Intermediate {
+    fn from(v: usize) -> Self {
+        Self::U64(v as _)
+    }
+}
+
 impl From<&str> for Intermediate {
     fn from(v: &str) -> Self {
         Self::String(v.to_owned())
@@ -409,9 +347,24 @@ impl From<Option<Intermediate>> for Intermediate {
     }
 }
 
+impl From<Result<Intermediate, Intermediate>> for Intermediate {
+    fn from(v: Result<Self, Self>) -> Self {
+        match v {
+            Ok(v) => Self::NewTypeVariant("Ok".to_owned(), 0, Box::new(v)),
+            Err(v) => Self::NewTypeVariant("Err".to_owned(), 1, Box::new(v)),
+        }
+    }
+}
+
 impl<const N: usize> From<[Intermediate; N]> for Intermediate {
     fn from(v: [Self; N]) -> Self {
         Self::Seq(v.to_vec())
+    }
+}
+
+impl From<(Intermediate,)> for Intermediate {
+    fn from(v: (Self,)) -> Self {
+        Self::Tuple(vec![v.0])
     }
 }
 
@@ -425,12 +378,6 @@ macro_rules! impl_from_tuple {
             }
         }
     };
-}
-
-impl From<(Intermediate,)> for Intermediate {
-    fn from(v: (Self,)) -> Self {
-        Self::Tuple(vec![v.0])
-    }
 }
 
 impl_from_tuple!(A, B);
@@ -457,6 +404,30 @@ impl_from_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, 
 impl_from_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, X);
 impl_from_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, X, Y);
 impl_from_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, X, Y, Z);
+
+impl From<Vec<Intermediate>> for Intermediate {
+    fn from(v: Vec<Self>) -> Self {
+        Self::Seq(v)
+    }
+}
+
+impl From<HashSet<Intermediate>> for Intermediate {
+    fn from(v: HashSet<Self>) -> Self {
+        Self::Seq(v.into_iter().collect())
+    }
+}
+
+impl From<HashMap<Intermediate, Intermediate>> for Intermediate {
+    fn from(v: HashMap<Self, Self>) -> Self {
+        Self::Map(v.into_iter().collect())
+    }
+}
+
+impl From<HashMap<String, Intermediate>> for Intermediate {
+    fn from(v: HashMap<String, Self>) -> Self {
+        Self::Struct(v.into_iter().collect())
+    }
+}
 
 impl Serialize for Intermediate {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -562,7 +533,7 @@ impl Serialize for Intermediate {
 }
 
 impl<'de> Deserialize<'de> for Intermediate {
-    fn deserialize<D>(deserializer: D) -> Result<Intermediate, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

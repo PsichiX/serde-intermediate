@@ -1,0 +1,18 @@
+[package]
+name = "serde-reflect-intermediate"
+version = "1.1.0"
+authors = ["Patryk 'PsichiX' Budzynski <psichix@gmail.com>"]
+edition = "2021"
+description = "Reflection utils of intermediate representation for Serde serialization"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/PsichiX/serde-reflect-intermediate"
+repository = "https://github.com/PsichiX/serde-reflect-intermediate"
+documentation = "https://docs.rs/serde-reflect-intermediate"
+readme = "../README.md"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde-intermediate = { version = "1", path = "../core" }
+
+[dev-dependencies]
+# serde_json = "1"

@@ -28,3 +28,5 @@ publish:
   cargo publish --manifest-path ./core/Cargo.toml --no-verify
   sleep 15
   cargo publish --manifest-path ./tagged/Cargo.toml --no-verify
+  sleep 15
+  cargo publish --manifest-path ./reflect/Cargo.toml --no-verify

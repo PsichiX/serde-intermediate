@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::{patch, versioning::sequence_difference, versioning::Change, Intermediate};
+use crate::{versioning::Change, Intermediate};
 use serde::{Deserialize, Serialize};
 use std::collections::{
     hash_map::RandomState,
@@ -352,17 +352,17 @@ fn test_migration() {
 }
 
 #[test]
-fn test_diff() {
+fn test_seq_diff() {
     let data = vec!["a", "b", "c"];
     let value = crate::to_intermediate(&data).unwrap();
-    let provided = sequence_difference(value.as_seq().unwrap(), value.as_seq().unwrap());
+    let provided = Change::sequence_difference(value.as_seq().unwrap(), value.as_seq().unwrap());
     assert_eq!(provided, vec![]);
 
     let data = vec!["a", "b", "c", "d"];
     let prev = crate::to_intermediate(&data).unwrap();
     let data = vec!["e", "f", "g", "h", "c", "d"];
     let next = crate::to_intermediate(&data).unwrap();
-    let provided = sequence_difference(prev.as_seq().unwrap(), next.as_seq().unwrap());
+    let provided = Change::sequence_difference(prev.as_seq().unwrap(), next.as_seq().unwrap());
     let expected = vec![
         (0, Change::Added("e".into())),
         (1, Change::Added("f".into())),
@@ -375,7 +375,7 @@ fn test_diff() {
     let prev = crate::to_intermediate(&data).unwrap();
     let data = vec!["e", "a", "b", "c", "f"];
     let next = crate::to_intermediate(&data).unwrap();
-    let provided = sequence_difference(prev.as_seq().unwrap(), next.as_seq().unwrap());
+    let provided = Change::sequence_difference(prev.as_seq().unwrap(), next.as_seq().unwrap());
     let expected = vec![
         (0, Change::Added("e".into())),
         (4, Change::Changed("f".into())),
@@ -393,6 +393,22 @@ fn test_versioning() {
         list: Vec<String>,
     }
 
+    let prev = Option::<usize>::None;
+    let prev = crate::to_intermediate(&prev).unwrap();
+    let next = Option::<usize>::Some(42);
+    let next = crate::to_intermediate(&next).unwrap();
+    let diff = Change::difference(&prev, &next);
+    let patched = diff.patch(&prev).unwrap().unwrap();
+    assert_eq!(patched, next);
+
+    let prev = Result::<usize, bool>::Ok(42);
+    let prev = crate::to_intermediate(&prev).unwrap();
+    let next = Result::<usize, bool>::Err(true);
+    let next = crate::to_intermediate(&next).unwrap();
+    let diff = Change::difference(&prev, &next);
+    let patched = diff.patch(&prev).unwrap().unwrap();
+    assert_eq!(patched, next);
+
     let prev = Foo {
         map: map! {"answer".to_owned() => 42},
         list: vec!["hello".to_owned()],
@@ -403,20 +419,21 @@ fn test_versioning() {
         list: vec!["hello".to_owned(), "world".to_owned()],
     };
     let next = crate::to_intermediate(&next).unwrap();
-    let diff = crate::difference(&prev, &next);
-    let patched = crate::patch(&prev, &diff).unwrap().unwrap();
+    let diff = Change::difference(&prev, &next);
+    let patched = diff.patch(&prev).unwrap().unwrap();
     assert_eq!(patched, next);
 
     let source = Intermediate::default();
     let change = Change::Same;
-    let patched = patch(&source, &change)
+    let patched = change
+        .patch(&source)
         .expect("Could not patch source")
         .unwrap();
     assert_eq!(patched, source);
 
     let source = Intermediate::default();
     let change = Change::Removed;
-    let patched = patch(&source, &change).expect("Could not patch source");
+    let patched = change.patch(&source).expect("Could not patch source");
     assert_eq!(patched, None);
 
     let source = Intermediate::seq().item(1).item(2).item(3);
@@ -424,7 +441,8 @@ fn test_versioning() {
     let change = Change::partial_seq()
         .partial_seq_item(1, Change::Removed)
         .partial_seq_item(1, Change::Changed(2.into()));
-    let patched = patch(&source, &change)
+    let patched = change
+        .patch(&source)
         .expect("Could not patch source")
         .unwrap();
     assert_eq!(patched, expected);
@@ -435,7 +453,8 @@ fn test_versioning() {
         (0, Change::Same),
         (1, Change::Changed("world".into())),
     ]);
-    let patched = patch(&source, &change)
+    let patched = change
+        .patch(&source)
         .expect("Could not patch source")
         .unwrap();
     assert_eq!(patched, expected);
@@ -446,7 +465,8 @@ fn test_versioning() {
         ("hey".to_owned(), Change::Removed),
         ("hi".to_owned(), Change::Added("hello".into())),
     ]);
-    let patched = patch(&source, &change)
+    let patched = change
+        .patch(&source)
         .expect("Could not patch source")
         .unwrap();
     assert_eq!(patched, expected);
@@ -511,8 +531,8 @@ fn test_versioning() {
         new_type_struct: NewTypeStruct(true),
         tuple_struct: TupleStruct(false, 42),
     };
-    let diff = crate::data_difference(&prev, &next).unwrap();
-    let patched = crate::data_patch(&prev, &diff).unwrap().unwrap();
+    let diff = Change::data_difference(&prev, &next).unwrap();
+    let patched = diff.data_patch(&prev).unwrap().unwrap();
     assert_eq!(next, patched);
 }
 

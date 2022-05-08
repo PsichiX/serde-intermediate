@@ -25,6 +25,6 @@ update:
   cargo update --workspace
 
 publish:
-  cargo publish --manifest-path ./core --no-verify
+  cargo publish --manifest-path ./core/Cargo.toml --no-verify
   sleep 15
-  cargo publish --manifest-path ./tagged --no-verify
+  cargo publish --manifest-path ./tagged/Cargo.toml --no-verify

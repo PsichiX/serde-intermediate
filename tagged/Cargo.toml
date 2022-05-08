@@ -2,7 +2,13 @@
 name = "serde-tagged-intermediate"
 version = "1.0.0"
 authors = ["Patryk 'PsichiX' Budzynski <psichix@gmail.com>"]
-edition = "2018"
+edition = "2021"
+description = "Tagged intermediate representation for Serde serialization"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/PsichiX/serde-tagged-intermediate"
+repository = "https://github.com/PsichiX/serde-tagged-intermediate"
+documentation = "https://docs.rs/serde-tagged-intermediate"
+readme = "../README.md"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

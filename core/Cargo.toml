@@ -2,7 +2,13 @@
 name = "serde-intermediate"
 version = "1.0.0"
 authors = ["Patryk 'PsichiX' Budzynski <psichix@gmail.com>"]
-edition = "2018"
+edition = "2021"
+description = "Intermediate representation for Serde serialization"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/PsichiX/serde-intermediate"
+repository = "https://github.com/PsichiX/serde-intermediate"
+documentation = "https://docs.rs/serde-intermediate"
+readme = "../README.md"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

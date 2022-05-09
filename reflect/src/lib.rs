@@ -8,6 +8,9 @@ use std::{
     hash::Hash,
 };
 
+#[cfg(feature = "derive")]
+pub use serde_reflect_intermediate_derive::*;
+
 pub trait ReflectIntermediate {
     fn patch_change(&mut self, _change: &Change) {}
 }

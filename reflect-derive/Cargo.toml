@@ -1,0 +1,18 @@
+[package]
+name = "serde-reflect-intermediate-derive"
+version = "1.2.0"
+authors = ["Patryk 'PsichiX' Budzynski <psichix@gmail.com>"]
+edition = "2021"
+description = "Derive proc macro for reflection utils of intermediate representation for Serde serialization"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/PsichiX/serde-reflect-intermediate-derive"
+repository = "https://github.com/PsichiX/serde-reflect-intermediate-derive"
+documentation = "https://docs.rs/serde-reflect-intermediate-derive"
+readme = "../README.md"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0"
+syn = { version = "1.0", features = ["extra-traits"] }

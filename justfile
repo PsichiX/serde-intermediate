@@ -8,7 +8,7 @@ build:
   cargo build --all
 
 test:
-  cargo test --all
+  cargo test --all --features derive
 
 clippy:
   cargo clippy --all
@@ -28,5 +28,7 @@ publish:
   cargo publish --manifest-path ./core/Cargo.toml --no-verify
   sleep 15
   cargo publish --manifest-path ./tagged/Cargo.toml --no-verify
+  sleep 15
+  cargo publish --manifest-path ./reflect-derive/Cargo.toml --no-verify
   sleep 15
   cargo publish --manifest-path ./reflect/Cargo.toml --no-verify

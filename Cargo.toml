@@ -3,4 +3,5 @@ members = [
   "core",
   "tagged",
   "reflect",
+  "reflect-derive",
 ]

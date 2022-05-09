@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use super::*;
+use crate as serde_reflect_intermediate;
 use serde::{Deserialize, Serialize};
 use serde_intermediate::to_intermediate;
 use std::collections::{
@@ -28,20 +29,20 @@ macro_rules! set {
     }}
 }
 
+fn patch<T>(mut prev: T, next: T)
+where
+    T: ReflectIntermediate + PartialEq + std::fmt::Debug + Serialize,
+{
+    let change = Change::difference(
+        &to_intermediate(&prev).unwrap(),
+        &to_intermediate(&next).unwrap(),
+    );
+    prev.patch_change(&change);
+    assert_eq!(prev, next);
+}
+
 #[test]
 fn test_general() {
-    fn patch<T>(mut prev: T, next: T)
-    where
-        T: ReflectIntermediate + PartialEq + std::fmt::Debug + Serialize,
-    {
-        let change = Change::difference(
-            &to_intermediate(&prev).unwrap(),
-            &to_intermediate(&next).unwrap(),
-        );
-        prev.patch_change(&change);
-        assert_eq!(prev, next);
-    }
-
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
     struct Foo {
         a: bool,
@@ -169,6 +170,48 @@ fn test_general() {
     patch(Bar::C(true, 0), Bar::C(true, 42));
     patch(Bar::C(true, 42), Bar::D { a: true, b: 0 });
     patch(Bar::D { a: true, b: 0 }, Bar::D { a: true, b: 42 });
+    patch(Bar::D { a: true, b: 42 }, Bar::A);
+    patch(Zee(false, 0), Zee(true, 0));
+    patch(Zee(false, 0), Zee(true, 42));
+    patch(Zee(false, 0), Zee(false, 42));
+}
+
+#[cfg(feature = "derive")]
+#[test]
+fn test_derive() {
+    use crate::ReflectIntermediate;
+
+    #[derive(Debug, Serialize, Deserialize, ReflectIntermediate, PartialEq)]
+    struct Foo {
+        a: bool,
+        b: usize,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, ReflectIntermediate, PartialEq)]
+    enum Bar {
+        A,
+        B(bool),
+        C(bool, usize),
+        D { a: bool, b: usize },
+    }
+
+    #[derive(Debug, Serialize, Deserialize, ReflectIntermediate, PartialEq)]
+    struct Zee(bool, usize);
+
+    #[derive(Debug, Serialize, Deserialize, ReflectIntermediate, PartialEq)]
+    struct Unit;
+
+    patch(Unit, Unit);
+    patch(Foo { a: false, b: 0 }, Foo { a: true, b: 0 });
+    patch(Foo { a: false, b: 0 }, Foo { a: true, b: 42 });
+    patch(Foo { a: false, b: 0 }, Foo { a: false, b: 42 });
+    patch(Bar::A, Bar::B(false));
+    patch(Bar::B(false), Bar::B(true));
+    patch(Bar::B(true), Bar::C(true, 0));
+    patch(Bar::C(true, 0), Bar::C(true, 42));
+    patch(Bar::C(true, 42), Bar::D { a: true, b: 0 });
+    patch(Bar::D { a: true, b: 0 }, Bar::D { a: true, b: 42 });
+    patch(Bar::D { a: true, b: 42 }, Bar::A);
     patch(Zee(false, 0), Zee(true, 0));
     patch(Zee(false, 0), Zee(true, 42));
     patch(Zee(false, 0), Zee(false, 42));

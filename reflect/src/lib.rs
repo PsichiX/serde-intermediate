@@ -13,6 +13,10 @@ pub use serde_reflect_intermediate_derive::*;
 
 pub trait ReflectIntermediate {
     fn patch_change(&mut self, _change: &Change) {}
+
+    fn before_patch_change(&mut self) {}
+
+    fn after_patch_change(&mut self) {}
 }
 
 macro_rules! impl_reflect {

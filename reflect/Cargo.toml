@@ -1,6 +1,6 @@
 [package]
 name = "serde-reflect-intermediate"
-version = "1.2.0"
+version = "1.2.3"
 authors = ["Patryk 'PsichiX' Budzynski <psichix@gmail.com>"]
 edition = "2021"
 description = "Reflection utils of intermediate representation for Serde serialization"

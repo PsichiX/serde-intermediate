@@ -181,38 +181,122 @@ fn test_general() {
 fn test_derive() {
     use crate::ReflectIntermediate;
 
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct Invalid;
+
     #[derive(Debug, Serialize, Deserialize, ReflectIntermediate, PartialEq)]
+    #[reflect_intermediate(
+        before_patch_change = "pre_patch_change",
+        after_patch_change = "post_patch_change"
+    )]
     struct Foo {
         a: bool,
         b: usize,
+        #[reflect_intermediate(ignore)]
+        c: Invalid,
+    }
+
+    impl Foo {
+        fn pre_patch_change(&mut self) {
+            println!("* Pre patch change: {:?}", self);
+        }
+
+        fn post_patch_change(&mut self) {
+            println!("* Post patch change: {:?}", self);
+        }
     }
 
     #[derive(Debug, Serialize, Deserialize, ReflectIntermediate, PartialEq)]
     enum Bar {
         A,
         B(bool),
-        C(bool, usize),
-        D { a: bool, b: usize },
+        C(bool, usize, #[reflect_intermediate(ignore)] Invalid),
+        D {
+            a: bool,
+            b: usize,
+            #[reflect_intermediate(ignore)]
+            c: Invalid,
+        },
+        #[reflect_intermediate(ignore)]
+        Invalid,
     }
 
     #[derive(Debug, Serialize, Deserialize, ReflectIntermediate, PartialEq)]
-    struct Zee(bool, usize);
+    struct Zee(bool, usize, #[reflect_intermediate(ignore)] Invalid);
 
     #[derive(Debug, Serialize, Deserialize, ReflectIntermediate, PartialEq)]
     struct Unit;
 
     patch(Unit, Unit);
-    patch(Foo { a: false, b: 0 }, Foo { a: true, b: 0 });
-    patch(Foo { a: false, b: 0 }, Foo { a: true, b: 42 });
-    patch(Foo { a: false, b: 0 }, Foo { a: false, b: 42 });
+    patch(
+        Foo {
+            a: false,
+            b: 0,
+            c: Invalid,
+        },
+        Foo {
+            a: true,
+            b: 0,
+            c: Invalid,
+        },
+    );
+    patch(
+        Foo {
+            a: false,
+            b: 0,
+            c: Invalid,
+        },
+        Foo {
+            a: true,
+            b: 42,
+            c: Invalid,
+        },
+    );
+    patch(
+        Foo {
+            a: false,
+            b: 0,
+            c: Invalid,
+        },
+        Foo {
+            a: false,
+            b: 42,
+            c: Invalid,
+        },
+    );
     patch(Bar::A, Bar::B(false));
     patch(Bar::B(false), Bar::B(true));
-    patch(Bar::B(true), Bar::C(true, 0));
-    patch(Bar::C(true, 0), Bar::C(true, 42));
-    patch(Bar::C(true, 42), Bar::D { a: true, b: 0 });
-    patch(Bar::D { a: true, b: 0 }, Bar::D { a: true, b: 42 });
-    patch(Bar::D { a: true, b: 42 }, Bar::A);
-    patch(Zee(false, 0), Zee(true, 0));
-    patch(Zee(false, 0), Zee(true, 42));
-    patch(Zee(false, 0), Zee(false, 42));
+    patch(Bar::B(true), Bar::C(true, 0, Invalid));
+    patch(Bar::C(true, 0, Invalid), Bar::C(true, 42, Invalid));
+    patch(
+        Bar::C(true, 42, Invalid),
+        Bar::D {
+            a: true,
+            b: 0,
+            c: Invalid,
+        },
+    );
+    patch(
+        Bar::D {
+            a: true,
+            b: 0,
+            c: Invalid,
+        },
+        Bar::D {
+            a: true,
+            b: 42,
+            c: Invalid,
+        },
+    );
+    patch(
+        Bar::D {
+            a: true,
+            b: 42,
+            c: Invalid,
+        },
+        Bar::A,
+    );
+    patch(Zee(false, 0, Invalid), Zee(true, 0, Invalid));
+    patch(Zee(false, 0, Invalid), Zee(true, 42, Invalid));
+    patch(Zee(false, 0, Invalid), Zee(false, 42, Invalid));
 }

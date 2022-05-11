@@ -1,6 +1,9 @@
 #![cfg(test)]
 
-use crate::{versioning::Change, Intermediate};
+use crate::{
+    versioning::{Change, DiffOptimizationHint, DiffOptions},
+    Intermediate,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{
     hash_map::RandomState,
@@ -397,7 +400,7 @@ fn test_versioning() {
     let prev = crate::to_intermediate(&prev).unwrap();
     let next = Option::<usize>::Some(42);
     let next = crate::to_intermediate(&next).unwrap();
-    let diff = Change::difference(&prev, &next);
+    let diff = Change::difference(&prev, &next, &Default::default());
     let patched = diff.patch(&prev).unwrap().unwrap();
     assert_eq!(patched, next);
 
@@ -405,7 +408,7 @@ fn test_versioning() {
     let prev = crate::to_intermediate(&prev).unwrap();
     let next = Result::<usize, bool>::Err(true);
     let next = crate::to_intermediate(&next).unwrap();
-    let diff = Change::difference(&prev, &next);
+    let diff = Change::difference(&prev, &next, &Default::default());
     let patched = diff.patch(&prev).unwrap().unwrap();
     assert_eq!(patched, next);
 
@@ -419,7 +422,7 @@ fn test_versioning() {
         list: vec!["hello".to_owned(), "world".to_owned()],
     };
     let next = crate::to_intermediate(&next).unwrap();
-    let diff = Change::difference(&prev, &next);
+    let diff = Change::difference(&prev, &next, &Default::default());
     let patched = diff.patch(&prev).unwrap().unwrap();
     assert_eq!(patched, next);
 
@@ -531,9 +534,19 @@ fn test_versioning() {
         new_type_struct: NewTypeStruct(true),
         tuple_struct: TupleStruct(false, 42),
     };
-    let diff = Change::data_difference(&prev, &next).unwrap();
+    let diff = Change::data_difference(&prev, &next, &Default::default()).unwrap();
     let patched = diff.data_patch(&prev).unwrap().unwrap();
     assert_eq!(next, patched);
+
+    let prev = crate::to_intermediate(&prev).unwrap();
+    let next = crate::to_intermediate(&next).unwrap();
+    let diff = Change::difference(
+        &prev,
+        &next,
+        &DiffOptions::default().optimization_hint(DiffOptimizationHint::SizePercentage(0.5)),
+    );
+    let patched = diff.patch(&prev).expect("Could not patch source").unwrap();
+    assert_eq!(patched, next);
 }
 
 #[test]

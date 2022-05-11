@@ -15,6 +15,7 @@ struct TypeAttribs {
 #[derive(Debug, Default)]
 struct FieldAttribs {
     pub ignore: bool,
+    pub indirect: bool,
 }
 
 #[proc_macro_derive(ReflectIntermediate, attributes(reflect_intermediate))]
@@ -53,14 +54,28 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
                     }
                     let name = field.ident.as_ref().unwrap();
                     let key = name.to_string();
-                    Some(quote! {
-                        #key => {
-                            self.#name.patch_change(change);
-                        }
-                    })
+                    if attribs.indirect {
+                        Some(quote! {
+                            #key => {
+                                if let Ok(serialized) = serde_intermediate::to_intermediate(&self.#name) {
+                                    if let Ok(Some(patched)) = change.patch(&serialized) {
+                                        if let Ok(deserialized) = serde_intermediate::from_intermediate(&patched) {
+                                            self.#name = deserialized;
+                                        }
+                                    }
+                                }
+                            }
+                        })
+                    } else {
+                        Some(quote! {
+                            #key => {
+                                self.#name.patch_change(change);
+                            }
+                        })
+                    }
                 }).collect::<Vec<_>>();
                 quote! {
-                    impl #impl_generics serde_reflect_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {
+                    impl #impl_generics serde_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {
                         fn patch_change(&mut self, change: &Change) {
                             self.before_patch_change();
                             match change {
@@ -95,14 +110,28 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
                         return None;
                     }
                     let tuple_index = Index::from(index);
-                    Some(quote! {
-                        #index => {
-                            self.#tuple_index.patch_change(change);
-                        }
-                    })
+                    if attribs.indirect {
+                        Some(quote! {
+                            #index => {
+                                if let Ok(serialized) = serde_intermediate::to_intermediate(&self.#tuple_index) {
+                                    if let Ok(Some(patched)) = change.patch(&serialized) {
+                                        if let Ok(deserialized) = serde_intermediate::from_intermediate(&patched) {
+                                            self.#tuple_index = deserialized;
+                                        }
+                                    }
+                                }
+                            }
+                        })
+                    } else {
+                        Some(quote! {
+                            #index => {
+                                self.#tuple_index.patch_change(change);
+                            }
+                        })
+                    }
                 }).collect::<Vec<_>>();
                 quote! {
-                    impl #impl_generics serde_reflect_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {
+                    impl #impl_generics serde_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {
                         fn patch_change(&mut self, change: &Change) {
                             self.before_patch_change();
                             match change {
@@ -131,7 +160,7 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
                 }.into()
             }
             Fields::Unit => quote! {
-                impl #impl_generics serde_reflect_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {}
+                impl #impl_generics serde_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {}
             }
             .into(),
         },
@@ -145,11 +174,25 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
                         if attribs.ignore {
                             return None;
                         }
-                        Some(quote! {
-                            Self::#name(content) => {
-                                content.patch_change(change);
-                            }
-                        })
+                        if attribs.indirect {
+                            Some(quote! {
+                                Self::#name(content) => {
+                                    if let Ok(serialized) = serde_intermediate::to_intermediate(content) {
+                                        if let Ok(Some(patched)) = change.patch(&serialized) {
+                                            if let Ok(deserialized) = serde_intermediate::from_intermediate(&patched) {
+                                                *content = deserialized;
+                                            }
+                                        }
+                                    }
+                                }
+                            })
+                        } else {
+                            Some(quote! {
+                                Self::#name(content) => {
+                                    content.patch_change(change);
+                                }
+                            })
+                        }
                     } else {
                         None
                     }
@@ -182,11 +225,25 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
                         }
                         let name = field.ident.as_ref().unwrap();
                         let key = name.to_string();
-                        Some(quote! {
-                            #key => {
-                                #name.patch_change(change);
-                            }
-                        })
+                        if attribs.indirect {
+                            Some(quote! {
+                                #key => {
+                                    if let Ok(serialized) = serde_intermediate::to_intermediate(#name) {
+                                        if let Ok(Some(patched)) = change.patch(&serialized) {
+                                            if let Ok(deserialized) = serde_intermediate::from_intermediate(&patched) {
+                                                *#name = deserialized;
+                                            }
+                                        }
+                                    }
+                                }
+                            })
+                        } else {
+                            Some(quote! {
+                                #key => {
+                                    #name.patch_change(change);
+                                }
+                            })
+                        }
                     }).collect::<Vec<_>>();
                     Some(quote! {
                         Self::#name { #( #field_names , )* .. } => {
@@ -203,7 +260,7 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
                 }
             }).collect::<Vec<_>>();
             quote! {
-                impl #impl_generics serde_reflect_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {
+                impl #impl_generics serde_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {
                     fn patch_change(&mut self, change: &Change) {
                         self.before_patch_change();
                         match change {
@@ -288,6 +345,8 @@ fn parse_field_attribs(attrs: &[Attribute]) -> FieldAttribs {
                         if let NestedMeta::Meta(Meta::Path(path)) = &meta {
                             if path.is_ident("ignore") {
                                 result.ignore = true;
+                            } else if path.is_ident("indirect") {
+                                result.indirect = true;
                             }
                         }
                     }

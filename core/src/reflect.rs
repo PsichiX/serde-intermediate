@@ -1,15 +1,9 @@
-#[cfg(test)]
-mod tests;
-
+use crate::{from_intermediate, Change, Intermediate};
 use serde::de::DeserializeOwned;
-use serde_intermediate::{from_intermediate, Change, Intermediate};
 use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
 };
-
-#[cfg(feature = "derive")]
-pub use serde_reflect_intermediate_derive::*;
 
 pub trait ReflectIntermediate {
     fn patch_change(&mut self, _change: &Change) {}

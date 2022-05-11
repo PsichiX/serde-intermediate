@@ -2,6 +2,35 @@ use crate::{error::*, value::intermediate::Intermediate};
 use petgraph::{algo::astar, Graph};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum DiffOptimizationHint {
+    Default,
+    SizeSource,
+    SizeTarget,
+    /// (bytesize threshold)
+    SizeValue(usize),
+    /// (percentage threshold)
+    SizePercentage(f64),
+}
+
+impl Default for DiffOptimizationHint {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+pub struct DiffOptions {
+    pub optimization_hint: DiffOptimizationHint,
+}
+
+impl DiffOptions {
+    pub fn optimization_hint(mut self, hint: DiffOptimizationHint) -> Self {
+        self.optimization_hint = hint;
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum Change {
     Same,
@@ -88,16 +117,57 @@ impl Change {
         matches!(self, Self::Same)
     }
 
-    pub fn difference(prev: &Intermediate, next: &Intermediate) -> Self {
+    fn optimize(
+        self,
+        source: &Intermediate,
+        target: &Intermediate,
+        hint: DiffOptimizationHint,
+    ) -> Self {
+        match hint {
+            DiffOptimizationHint::Default => self,
+            DiffOptimizationHint::SizeSource => {
+                if self.total_bytesize() > source.total_bytesize() {
+                    Self::Changed(target.to_owned())
+                } else {
+                    self
+                }
+            }
+            DiffOptimizationHint::SizeTarget => {
+                if self.total_bytesize() > target.total_bytesize() {
+                    Self::Changed(target.to_owned())
+                } else {
+                    self
+                }
+            }
+            DiffOptimizationHint::SizeValue(threshold) => {
+                if self.total_bytesize() > threshold {
+                    Self::Changed(target.to_owned())
+                } else {
+                    self
+                }
+            }
+            DiffOptimizationHint::SizePercentage(threshold) => {
+                if self.total_bytesize()
+                    > (threshold.max(0.0).min(1.0) * source.total_bytesize() as f64) as _
+                {
+                    Self::Changed(target.to_owned())
+                } else {
+                    self
+                }
+            }
+        }
+    }
+
+    pub fn difference(prev: &Intermediate, next: &Intermediate, options: &DiffOptions) -> Self {
         if prev == next {
             Self::Same
         } else {
             match (prev, next) {
                 (Intermediate::Option(Some(prev)), Intermediate::Option(Some(next))) => {
-                    Self::PartialChange(Box::new(Self::difference(prev, next)))
+                    Self::difference(prev, next, options)
                 }
                 (Intermediate::NewTypeStruct(prev), Intermediate::NewTypeStruct(next)) => {
-                    Self::PartialChange(Box::new(Self::difference(prev, next)))
+                    Self::PartialChange(Box::new(Self::difference(prev, next, options)))
                 }
                 (
                     Intermediate::NewTypeVariant(prev_name, prev_index, prev_value),
@@ -106,7 +176,9 @@ impl Change {
                     if prev_name != next_name || prev_index != next_index {
                         Self::Changed(next.to_owned())
                     } else {
-                        Self::PartialChange(Box::new(Self::difference(prev_value, next_value)))
+                        Self::PartialChange(Box::new(Self::difference(
+                            prev_value, next_value, options,
+                        )))
                     }
                 }
                 (Intermediate::Seq(prev), Intermediate::Seq(next))
@@ -132,7 +204,7 @@ impl Change {
                             .find(|(nk, _)| pk == nk)
                             .filter(|(_, nv)| pv != nv)
                         {
-                            let diff = Self::difference(pv, nv);
+                            let diff = Self::difference(pv, nv, options);
                             if !diff.is_same() {
                                 result.push((pk.to_owned(), diff));
                             }
@@ -162,7 +234,7 @@ impl Change {
                             .find(|(nk, _)| pk == nk)
                             .filter(|(_, nv)| pv != nv)
                         {
-                            let diff = Self::difference(pv, nv);
+                            let diff = Self::difference(pv, nv, options);
                             if !diff.is_same() {
                                 result.push((pk.to_owned(), diff));
                             }
@@ -173,6 +245,7 @@ impl Change {
                 _ => Self::Changed(next.to_owned()),
             }
         }
+        .optimize(prev, next, options.optimization_hint)
     }
 
     pub fn sequence_difference(prev: &[Intermediate], next: &[Intermediate]) -> Vec<(usize, Self)> {
@@ -423,14 +496,14 @@ impl Change {
         }
     }
 
-    pub fn data_difference<P, N>(prev: &P, next: &N) -> Result<Self>
+    pub fn data_difference<P, N>(prev: &P, next: &N, options: &DiffOptions) -> Result<Self>
     where
         P: Serialize,
         N: Serialize,
     {
         let prev = crate::to_intermediate(prev)?;
         let next = crate::to_intermediate(next)?;
-        Ok(Self::difference(&prev, &next))
+        Ok(Self::difference(&prev, &next, options))
     }
 
     pub fn data_patch<T>(&self, data: &T) -> Result<Option<T>>

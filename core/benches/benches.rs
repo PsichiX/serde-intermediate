@@ -170,11 +170,29 @@ fn patching_optimized(c: &mut Criterion) {
     });
 }
 
+fn dlcs(c: &mut Criterion) {
+    let mut rng = randomizer();
+    let base = &Account::generate(&mut rng);
+    let patch_a = &Account::generate(&mut rng);
+    let patch_b = &Account::generate(&mut rng);
+    let options = &DiffOptions::default().optimization_hint(DiffOptimizationHint::SizeTarget);
+    let change_a = &Change::data_difference(base, patch_a, options).unwrap();
+    let change_b = &Change::data_difference(base, patch_b, options).unwrap();
+
+    c.bench_function("Apply DLCs", |b| {
+        b.iter(|| {
+            let patched = change_a.data_patch(black_box(base)).unwrap().unwrap();
+            let _ = change_b.data_patch(black_box(&patched)).unwrap().unwrap();
+        })
+    });
+}
+
 criterion_group!(
     benches,
     serialize,
     deserialize,
     patching,
-    patching_optimized
+    patching_optimized,
+    dlcs,
 );
 criterion_main!(benches);

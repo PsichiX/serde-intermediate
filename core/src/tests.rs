@@ -547,6 +547,47 @@ fn test_versioning() {
     );
     let patched = diff.patch(&prev).expect("Could not patch source").unwrap();
     assert_eq!(patched, next);
+
+    let base = Foo {
+        map: map!("a".to_owned() => 1, "b".to_owned() => 2),
+        list: vec!["hello".to_owned(), "world".to_owned()],
+    };
+    let patch_a = Foo {
+        map: map!("a".to_owned() => 1),
+        list: vec!["hello".to_owned(), "foo".to_owned()],
+    };
+    let patch_b = Foo {
+        map: map!("a".to_owned() => 42, "b".to_owned() => 2),
+        list: vec!["foo".to_owned()],
+    };
+    let change_a = Change::data_difference(&base, &patch_a, &Default::default()).unwrap();
+    let change_b = Change::data_difference(&base, &patch_b, &Default::default()).unwrap();
+    {
+        let patched = change_a.data_patch(&base).unwrap().unwrap();
+        assert_eq!(patched, patch_a);
+    }
+    {
+        let patched = change_b.data_patch(&base).unwrap().unwrap();
+        assert_eq!(patched, patch_b);
+    }
+    {
+        let patched = change_a.data_patch(&base).unwrap().unwrap();
+        let patched = change_b.data_patch(&patched).unwrap().unwrap();
+        let expected = Foo {
+            map: map!("a".to_owned() => 42),
+            list: vec!["foo".to_owned()],
+        };
+        assert_eq!(patched, expected);
+    }
+    {
+        let patched = change_b.data_patch(&base).unwrap().unwrap();
+        let patched = change_a.data_patch(&patched).unwrap().unwrap();
+        let expected = Foo {
+            map: map!("a".to_owned() => 42),
+            list: vec!["foo".to_owned()],
+        };
+        assert_eq!(patched, expected);
+    }
 }
 
 #[test]

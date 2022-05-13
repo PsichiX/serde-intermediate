@@ -164,7 +164,7 @@ impl Change {
         } else {
             match (prev, next) {
                 (Intermediate::Option(Some(prev)), Intermediate::Option(Some(next))) => {
-                    Self::difference(prev, next, options)
+                    Self::PartialChange(Box::new(Self::difference(prev, next, options)))
                 }
                 (Intermediate::NewTypeStruct(prev), Intermediate::NewTypeStruct(next)) => {
                     Self::PartialChange(Box::new(Self::difference(prev, next, options)))
@@ -184,7 +184,7 @@ impl Change {
                 (Intermediate::Seq(prev), Intermediate::Seq(next))
                 | (Intermediate::Tuple(prev), Intermediate::Tuple(next))
                 | (Intermediate::TupleStruct(prev), Intermediate::TupleStruct(next)) => {
-                    Self::PartialSeq(Self::sequence_difference(prev, next))
+                    Self::PartialSeq(Self::sequence_difference(prev, next, options))
                 }
                 (Intermediate::Map(prev), Intermediate::Map(next)) => {
                     let mut result = vec![];
@@ -248,7 +248,11 @@ impl Change {
         .optimize(prev, next, options.optimization_hint)
     }
 
-    pub fn sequence_difference(prev: &[Intermediate], next: &[Intermediate]) -> Vec<(usize, Self)> {
+    pub fn sequence_difference(
+        prev: &[Intermediate],
+        next: &[Intermediate],
+        options: &DiffOptions,
+    ) -> Vec<(usize, Self)> {
         if prev.is_empty() && next.is_empty() {
             return vec![];
         } else if prev.is_empty() {
@@ -346,7 +350,15 @@ impl Change {
                         }
                         Diff::Changed => {
                             pos += 1;
-                            Some((old_pos, Self::Changed(next[old_pos].to_owned())))
+                            let (prev_pos, _) = graph.node_weight(chunk[0])?;
+                            let prev = &prev[*prev_pos];
+                            let next = &next[old_pos];
+                            let diff = Self::difference(prev, next, options).optimize(
+                                prev,
+                                next,
+                                options.optimization_hint,
+                            );
+                            Some((old_pos, diff))
                         }
                         Diff::Removed => Some((old_pos, Self::Removed)),
                         Diff::Added => {
@@ -366,7 +378,24 @@ impl Change {
             Self::Removed => Ok(None),
             Self::Changed(v) => Ok(Some(v.to_owned())),
             Self::Added(_) => Err(Error::CannotAdd(value.to_owned())),
-            Self::PartialChange(change) => change.patch(value),
+            Self::PartialChange(change) => {
+                let result = match value {
+                    Intermediate::Option(Some(v)) => match change.patch(v)? {
+                        Some(v) => Intermediate::Option(Some(Box::new(v))),
+                        _ => return Err(Error::NotPartial(value.to_owned())),
+                    },
+                    Intermediate::NewTypeStruct(v) => match change.patch(v)? {
+                        Some(v) => Intermediate::NewTypeStruct(Box::new(v)),
+                        _ => return Err(Error::NotPartial(value.to_owned())),
+                    },
+                    Intermediate::NewTypeVariant(n, i, v) => match change.patch(v)? {
+                        Some(v) => Intermediate::NewTypeVariant(n.to_owned(), *i, Box::new(v)),
+                        _ => return Err(Error::NotPartial(value.to_owned())),
+                    },
+                    _ => return Err(Error::NotPartial(value.to_owned())),
+                };
+                Ok(Some(result))
+            }
             Self::PartialSeq(changes) => {
                 fn implement(
                     v: &[Intermediate],

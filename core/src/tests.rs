@@ -2,13 +2,19 @@
 
 use crate::{
     versioning::{Change, DiffOptimizationHint, DiffOptions},
-    Intermediate,
+    Intermediate, ReflectIntermediate,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{
-    hash_map::RandomState,
-    {HashMap, HashSet},
+use std::{
+    cell::Cell,
+    collections::{
+        hash_map::RandomState,
+        {HashMap, HashSet},
+    },
+    sync::Mutex,
 };
+
+use crate as serde_intermediate;
 
 macro_rules! map {
     ( $( $key:expr => $value:expr ),* ) => {{
@@ -30,16 +36,16 @@ macro_rules! set {
     }}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
 struct UnitStruct;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
 struct NewTypeStruct(bool);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
 struct TupleStruct(bool, usize);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
 enum Enum {
     Unit,
     NewType(UnitStruct),
@@ -47,7 +53,7 @@ enum Enum {
     Struct { scalar: f32, text: String },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
 struct Struct {
     pub bool_value: bool,
     pub i8_value: i8,
@@ -358,14 +364,22 @@ fn test_migration() {
 fn test_seq_diff() {
     let data = vec!["a", "b", "c"];
     let value = crate::to_intermediate(&data).unwrap();
-    let provided = Change::sequence_difference(value.as_seq().unwrap(), value.as_seq().unwrap());
+    let provided = Change::sequence_difference(
+        value.as_seq().unwrap(),
+        value.as_seq().unwrap(),
+        &Default::default(),
+    );
     assert_eq!(provided, vec![]);
 
     let data = vec!["a", "b", "c", "d"];
     let prev = crate::to_intermediate(&data).unwrap();
     let data = vec!["e", "f", "g", "h", "c", "d"];
     let next = crate::to_intermediate(&data).unwrap();
-    let provided = Change::sequence_difference(prev.as_seq().unwrap(), next.as_seq().unwrap());
+    let provided = Change::sequence_difference(
+        prev.as_seq().unwrap(),
+        next.as_seq().unwrap(),
+        &Default::default(),
+    );
     let expected = vec![
         (0, Change::Added("e".into())),
         (1, Change::Added("f".into())),
@@ -378,7 +392,11 @@ fn test_seq_diff() {
     let prev = crate::to_intermediate(&data).unwrap();
     let data = vec!["e", "a", "b", "c", "f"];
     let next = crate::to_intermediate(&data).unwrap();
-    let provided = Change::sequence_difference(prev.as_seq().unwrap(), next.as_seq().unwrap());
+    let provided = Change::sequence_difference(
+        prev.as_seq().unwrap(),
+        next.as_seq().unwrap(),
+        &Default::default(),
+    );
     let expected = vec![
         (0, Change::Added("e".into())),
         (4, Change::Changed("f".into())),
@@ -388,7 +406,7 @@ fn test_seq_diff() {
 
 #[test]
 fn test_versioning() {
-    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, ReflectIntermediate)]
     struct Foo {
         #[serde(default)]
         map: HashMap<String, usize>,
@@ -396,27 +414,126 @@ fn test_versioning() {
         list: Vec<String>,
     }
 
-    let prev = Option::<usize>::None;
-    let prev = crate::to_intermediate(&prev).unwrap();
+    #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, ReflectIntermediate)]
+    struct Wrapper {
+        v: bool,
+    }
+
+    impl Wrapper {
+        fn new(v: bool) -> Self {
+            Self { v }
+        }
+    }
+
+    let mut source = Option::<usize>::None;
+    let prev = crate::to_intermediate(&source).unwrap();
     let next = Option::<usize>::Some(42);
     let next = crate::to_intermediate(&next).unwrap();
     let diff = Change::difference(&prev, &next, &Default::default());
     let patched = diff.patch(&prev).unwrap().unwrap();
     assert_eq!(patched, next);
+    source.patch_change(&diff);
+    let target = crate::from_intermediate(&next).unwrap();
+    assert_eq!(source, target);
 
-    let prev = Result::<usize, bool>::Ok(42);
-    let prev = crate::to_intermediate(&prev).unwrap();
+    let mut source = Some(Wrapper::new(false));
+    let prev = crate::to_intermediate(&source).unwrap();
+    let next = Some(Wrapper::new(true));
+    let next = crate::to_intermediate(&next).unwrap();
+    let diff = Change::difference(&prev, &next, &Default::default());
+    let patched = diff.patch(&prev).unwrap().unwrap();
+    assert_eq!(patched, next);
+    source.patch_change(&diff);
+    let target = crate::from_intermediate(&next).unwrap();
+    assert_eq!(source, target);
+
+    let mut source = Result::<usize, bool>::Ok(42);
+    let prev = crate::to_intermediate(&source).unwrap();
     let next = Result::<usize, bool>::Err(true);
     let next = crate::to_intermediate(&next).unwrap();
     let diff = Change::difference(&prev, &next, &Default::default());
     let patched = diff.patch(&prev).unwrap().unwrap();
     assert_eq!(patched, next);
+    source.patch_change(&diff);
+    let target = crate::from_intermediate(&next).unwrap();
+    assert_eq!(source, target);
 
-    let prev = Foo {
+    let mut source = Result::<Wrapper, ()>::Ok(Wrapper::new(false));
+    let prev = crate::to_intermediate(&source).unwrap();
+    let next = Result::<Wrapper, ()>::Ok(Wrapper::new(true));
+    let next = crate::to_intermediate(&next).unwrap();
+    let diff = Change::difference(&prev, &next, &Default::default());
+    let patched = diff.patch(&prev).unwrap().unwrap();
+    assert_eq!(patched, next);
+    source.patch_change(&diff);
+    let target = crate::from_intermediate(&next).unwrap();
+    assert_eq!(source, target);
+
+    let mut source = Cell::new(false);
+    let prev = crate::to_intermediate(&source).unwrap();
+    let next = Cell::new(true);
+    let next = crate::to_intermediate(&next).unwrap();
+    let diff = Change::difference(&prev, &next, &Default::default());
+    let patched = diff.patch(&prev).unwrap().unwrap();
+    assert_eq!(patched, next);
+    source.patch_change(&diff);
+    let target = crate::from_intermediate(&next).unwrap();
+    assert_eq!(source, target);
+
+    let mut source = Mutex::new(false);
+    let prev = crate::to_intermediate(&source).unwrap();
+    let next = Mutex::new(true);
+    let next = crate::to_intermediate(&next).unwrap();
+    let diff = Change::difference(&prev, &next, &Default::default());
+    let patched = diff.patch(&prev).unwrap().unwrap();
+    assert_eq!(patched, next);
+    source.patch_change(&diff);
+    let target = crate::from_intermediate::<Mutex<bool>>(&next).unwrap();
+    {
+        let source = source.lock().unwrap();
+        let target = target.lock().unwrap();
+        assert_eq!(*source, *target);
+    }
+
+    let mut source = 0..5;
+    let prev = crate::to_intermediate(&source).unwrap();
+    let next = 5..10;
+    let next = crate::to_intermediate(&next).unwrap();
+    let diff = Change::difference(&prev, &next, &Default::default());
+    let patched = diff.patch(&prev).unwrap().unwrap();
+    assert_eq!(patched, next);
+    source.patch_change(&diff);
+    let target = crate::from_intermediate(&next).unwrap();
+    assert_eq!(source, target);
+
+    let mut source = 0..=5;
+    let prev = crate::to_intermediate(&source).unwrap();
+    let next = 5..=10;
+    let next = crate::to_intermediate(&next).unwrap();
+    let diff = Change::difference(&prev, &next, &Default::default());
+    let patched = diff.patch(&prev).unwrap().unwrap();
+    assert_eq!(patched, next);
+    source.patch_change(&diff);
+    let target = crate::from_intermediate(&next).unwrap();
+    assert_eq!(source, target);
+
+    let mut prev = vec![Foo {
+        map: map! {"answer".to_owned() => 0},
+        list: vec!["hello".to_owned()],
+    }];
+    let next = vec![Foo {
+        map: map! {"answer".to_owned() => 42},
+        list: vec!["hello".to_owned()],
+    }];
+    let diff = Change::data_difference(&prev, &next, &Default::default()).unwrap();
+    prev.patch_change(&diff);
+    assert_eq!(prev, next);
+
+    let mut source = Foo {
         map: map! {"answer".to_owned() => 42},
         list: vec!["hello".to_owned()],
     };
-    let prev = crate::to_intermediate(&prev).unwrap();
+    let prev = crate::to_intermediate(&source).unwrap();
     let next = Foo {
         map: map! {"answer".to_owned() => 0},
         list: vec!["hello".to_owned(), "world".to_owned()],
@@ -425,6 +542,9 @@ fn test_versioning() {
     let diff = Change::difference(&prev, &next, &Default::default());
     let patched = diff.patch(&prev).unwrap().unwrap();
     assert_eq!(patched, next);
+    source.patch_change(&diff);
+    let target = crate::from_intermediate(&next).unwrap();
+    assert_eq!(source, target);
 
     let source = Intermediate::default();
     let change = Change::Same;
@@ -474,7 +594,7 @@ fn test_versioning() {
         .unwrap();
     assert_eq!(patched, expected);
 
-    let prev = Struct {
+    let mut prev = Struct {
         bool_value: true,
         i8_value: -1,
         i16_value: 2,
@@ -537,6 +657,8 @@ fn test_versioning() {
     let diff = Change::data_difference(&prev, &next, &Default::default()).unwrap();
     let patched = diff.data_patch(&prev).unwrap().unwrap();
     assert_eq!(next, patched);
+    prev.patch_change(&diff);
+    assert_eq!(prev, next);
 
     let prev = crate::to_intermediate(&prev).unwrap();
     let next = crate::to_intermediate(&next).unwrap();

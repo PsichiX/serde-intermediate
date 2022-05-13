@@ -1,8 +1,23 @@
 use crate::{from_intermediate, Change, Intermediate};
 use serde::de::DeserializeOwned;
 use std::{
-    collections::{HashMap, HashSet},
+    cell::Cell,
+    collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
     hash::Hash,
+    marker::PhantomData,
+    num::{
+        NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize, NonZeroU128,
+        NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize,
+    },
+    ops::{Range, RangeInclusive},
+    path::PathBuf,
+    sync::{
+        atomic::{
+            AtomicBool, AtomicI16, AtomicI32, AtomicI64, AtomicI8, AtomicIsize, AtomicU16,
+            AtomicU32, AtomicU64, AtomicU8, AtomicUsize,
+        },
+        Mutex,
+    },
 };
 
 pub trait ReflectIntermediate {
@@ -31,9 +46,29 @@ macro_rules! impl_reflect {
             }
         }
     };
+    (@cast $type:ty => $cast:ty => $( $variant:ident ),+ ) => {
+        impl ReflectIntermediate for $type {
+            fn patch_change(&mut self, change: &Change) {
+                #[allow(clippy::collapsible_match)]
+                if let Change::Changed(v) = change {
+                    match v {
+                        $(
+                            Intermediate::$variant(v) => if let Ok(v) = <$cast>::try_from(*v) {
+                                if let Ok(v) = Self::try_from(v) {
+                                    *self = v;
+                                }
+                            }
+                        )+
+                        _ => {}
+                    }
+                }
+            }
+        }
+    };
 }
 
 impl ReflectIntermediate for () {}
+impl<T> ReflectIntermediate for PhantomData<T> {}
 
 impl_reflect! { @atom bool => Bool }
 impl_reflect! { @atom i8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
@@ -51,6 +86,29 @@ impl_reflect! { @atom usize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64,
 impl_reflect! { @atom f32 => I8, I16, U8, U16, F32 }
 impl_reflect! { @atom f64 => I8, I16, I32, U8, U16, U32, F32, F64 }
 impl_reflect! { @atom char => U8, U32, Char }
+impl_reflect! { @cast AtomicBool => bool => Bool }
+impl_reflect! { @cast AtomicI8 => i8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast AtomicI16 => i16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast AtomicI32 => i32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast AtomicI64 => i64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast AtomicIsize => isize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast AtomicU8 => u8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
+impl_reflect! { @cast AtomicU16 => u16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast AtomicU32 => u32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
+impl_reflect! { @cast AtomicU64 => u64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
+impl_reflect! { @cast AtomicUsize => usize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast NonZeroI8 => i8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast NonZeroI16 => i16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast NonZeroI32 => i32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast NonZeroI64 => i64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast NonZeroI128 => i128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast NonZeroIsize => isize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast NonZeroU8 => u8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
+impl_reflect! { @cast NonZeroU16 => u16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect! { @cast NonZeroU32 => u32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
+impl_reflect! { @cast NonZeroU64 => u64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
+impl_reflect! { @cast NonZeroU128 => u128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
+impl_reflect! { @cast NonZeroUsize => usize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
 
 impl ReflectIntermediate for String {
     fn patch_change(&mut self, change: &Change) {
@@ -68,44 +126,22 @@ impl ReflectIntermediate for String {
     }
 }
 
-impl<T> ReflectIntermediate for Option<T>
-where
-    T: ReflectIntermediate + DeserializeOwned,
-{
+impl ReflectIntermediate for PathBuf {
     fn patch_change(&mut self, change: &Change) {
-        match change {
-            Change::Changed(v) => {
-                if let Ok(v) = from_intermediate(v) {
-                    *self = v;
+        if let Change::Changed(v) = change {
+            match v {
+                Intermediate::Char(v) => {
+                    if let Ok(v) = Self::try_from(v.to_string()) {
+                        *self = v;
+                    }
                 }
-            }
-            Change::PartialChange(change) => {
-                if let Some(content) = self {
-                    content.patch_change(change);
+                Intermediate::String(v) => {
+                    if let Ok(v) = Self::try_from(v) {
+                        *self = v;
+                    }
                 }
+                _ => {}
             }
-            _ => {}
-        }
-    }
-}
-
-impl<T, E> ReflectIntermediate for Result<T, E>
-where
-    T: ReflectIntermediate + DeserializeOwned,
-    E: ReflectIntermediate + DeserializeOwned,
-{
-    fn patch_change(&mut self, change: &Change) {
-        match change {
-            Change::Changed(v) => {
-                if let Ok(v) = from_intermediate(v) {
-                    *self = v;
-                }
-            }
-            Change::PartialChange(change) => match self {
-                Ok(content) => content.patch_change(change),
-                Err(content) => content.patch_change(change),
-            },
-            _ => {}
         }
     }
 }
@@ -251,9 +287,155 @@ where
     }
 }
 
+impl<T> ReflectIntermediate for VecDeque<T>
+where
+    T: ReflectIntermediate + DeserializeOwned,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    *self = v;
+                }
+            }
+            Change::PartialSeq(v) => {
+                for (index, change) in v {
+                    match change {
+                        Change::Removed => {
+                            self.remove(*index);
+                        }
+                        Change::Added(v) => {
+                            if let Ok(v) = from_intermediate(v) {
+                                self.insert(*index, v);
+                            }
+                        }
+                        change => {
+                            if let Some(item) = self.get_mut(*index) {
+                                item.patch_change(change);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 impl<T> ReflectIntermediate for HashSet<T>
 where
     T: ReflectIntermediate + DeserializeOwned + Hash + Eq + Clone,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    *self = v;
+                }
+            }
+            Change::PartialSeq(v) => {
+                let mut data = self.iter().cloned().collect::<Vec<_>>();
+                for (index, change) in v {
+                    match change {
+                        Change::Removed => {
+                            data.remove(*index);
+                        }
+                        Change::Added(v) => {
+                            if let Ok(v) = from_intermediate(v) {
+                                data.insert(*index, v);
+                            }
+                        }
+                        change => {
+                            if let Some(item) = data.get_mut(*index) {
+                                item.patch_change(change);
+                            }
+                        }
+                    }
+                }
+                *self = data.into_iter().collect();
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<T> ReflectIntermediate for BTreeSet<T>
+where
+    T: ReflectIntermediate + DeserializeOwned + Ord + Clone,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    *self = v;
+                }
+            }
+            Change::PartialSeq(v) => {
+                let mut data = self.iter().cloned().collect::<Vec<_>>();
+                for (index, change) in v {
+                    match change {
+                        Change::Removed => {
+                            data.remove(*index);
+                        }
+                        Change::Added(v) => {
+                            if let Ok(v) = from_intermediate(v) {
+                                data.insert(*index, v);
+                            }
+                        }
+                        change => {
+                            if let Some(item) = data.get_mut(*index) {
+                                item.patch_change(change);
+                            }
+                        }
+                    }
+                }
+                *self = data.into_iter().collect();
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<T> ReflectIntermediate for LinkedList<T>
+where
+    T: ReflectIntermediate + DeserializeOwned + Clone,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    *self = v;
+                }
+            }
+            Change::PartialSeq(v) => {
+                let mut data = self.iter().cloned().collect::<Vec<_>>();
+                for (index, change) in v {
+                    match change {
+                        Change::Removed => {
+                            data.remove(*index);
+                        }
+                        Change::Added(v) => {
+                            if let Ok(v) = from_intermediate(v) {
+                                data.insert(*index, v);
+                            }
+                        }
+                        change => {
+                            if let Some(item) = data.get_mut(*index) {
+                                item.patch_change(change);
+                            }
+                        }
+                    }
+                }
+                *self = data.into_iter().collect();
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<T> ReflectIntermediate for BinaryHeap<T>
+where
+    T: ReflectIntermediate + DeserializeOwned + Ord + Clone,
 {
     fn patch_change(&mut self, change: &Change) {
         match change {
@@ -326,6 +508,44 @@ where
     }
 }
 
+impl<K, V> ReflectIntermediate for BTreeMap<K, V>
+where
+    K: ReflectIntermediate + DeserializeOwned + Ord,
+    V: ReflectIntermediate + DeserializeOwned,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    *self = v;
+                }
+            }
+            Change::PartialMap(v) => {
+                for (key, change) in v {
+                    if let Ok(key) = from_intermediate(key) {
+                        match change {
+                            Change::Removed => {
+                                self.remove(&key);
+                            }
+                            Change::Added(v) => {
+                                if let Ok(v) = from_intermediate(v) {
+                                    self.insert(key, v);
+                                }
+                            }
+                            change => {
+                                if let Some(item) = self.get_mut(&key) {
+                                    item.patch_change(change);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 impl<T> ReflectIntermediate for Box<T>
 where
     T: ReflectIntermediate + DeserializeOwned,
@@ -339,6 +559,140 @@ where
             }
             Change::PartialChange(change) => {
                 self.patch_change(change);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<T> ReflectIntermediate for Option<T>
+where
+    T: ReflectIntermediate + DeserializeOwned,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    *self = v;
+                }
+            }
+            Change::PartialChange(change) => {
+                if let Some(content) = self {
+                    content.patch_change(change);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<T, E> ReflectIntermediate for Result<T, E>
+where
+    T: ReflectIntermediate + DeserializeOwned,
+    E: ReflectIntermediate + DeserializeOwned,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    *self = v;
+                }
+            }
+            Change::PartialChange(change) => match self {
+                Ok(content) => content.patch_change(change),
+                Err(content) => content.patch_change(change),
+            },
+            _ => {}
+        }
+    }
+}
+
+impl<T> ReflectIntermediate for Cell<T>
+where
+    T: ReflectIntermediate + DeserializeOwned,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    self.set(v);
+                }
+            }
+            Change::PartialChange(change) => {
+                self.patch_change(change);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<T> ReflectIntermediate for Mutex<T>
+where
+    T: ReflectIntermediate + DeserializeOwned,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    if let Ok(ref mut mutex) = self.try_lock() {
+                        **mutex = v;
+                    }
+                }
+            }
+            Change::PartialChange(change) => {
+                self.patch_change(change);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<T> ReflectIntermediate for Range<T>
+where
+    T: ReflectIntermediate + DeserializeOwned,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    *self = v;
+                }
+            }
+            Change::PartialStruct(v) => {
+                for (key, change) in v {
+                    match key.as_str() {
+                        "start" => self.start.patch_change(change),
+                        "end" => self.end.patch_change(change),
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<T> ReflectIntermediate for RangeInclusive<T>
+where
+    T: ReflectIntermediate + DeserializeOwned + Clone,
+{
+    fn patch_change(&mut self, change: &Change) {
+        match change {
+            Change::Changed(v) => {
+                if let Ok(v) = from_intermediate(v) {
+                    *self = v;
+                }
+            }
+            Change::PartialStruct(v) => {
+                let (mut start, mut end) = self.clone().into_inner();
+                for (key, change) in v {
+                    match key.as_str() {
+                        "start" => start.patch_change(change),
+                        "end" => end.patch_change(change),
+                        _ => {}
+                    }
+                }
+                *self = Self::new(start, end);
             }
             _ => {}
         }

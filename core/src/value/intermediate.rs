@@ -1,4 +1,6 @@
-use crate::de::intermediate::IntermediateVisitor;
+use crate::{
+    de::intermediate::IntermediateVisitor, reflect::ReflectIntermediate, versioning::Change,
+};
 use serde::{
     ser::{
         SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
@@ -198,6 +200,14 @@ impl Intermediate {
                 }
                 _ => 0,
             }
+    }
+}
+
+impl ReflectIntermediate for Intermediate {
+    fn patch_change(&mut self, change: &Change) {
+        if let Ok(Some(v)) = change.patch(self) {
+            *self = v;
+        }
     }
 }
 

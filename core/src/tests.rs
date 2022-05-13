@@ -11,6 +11,7 @@ use std::{
         hash_map::RandomState,
         {HashMap, HashSet},
     },
+    path::PathBuf,
     sync::Mutex,
 };
 
@@ -406,7 +407,7 @@ fn test_seq_diff() {
 
 #[test]
 fn test_versioning() {
-    #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, ReflectIntermediate)]
+    #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, ReflectIntermediate)]
     struct Foo {
         #[serde(default)]
         map: HashMap<String, usize>,
@@ -414,7 +415,7 @@ fn test_versioning() {
         list: Vec<String>,
     }
 
-    #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, ReflectIntermediate)]
+    #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, ReflectIntermediate)]
     struct Wrapper {
         v: bool,
     }
@@ -559,7 +560,7 @@ fn test_versioning() {
     let patched = change.patch(&source).expect("Could not patch source");
     assert_eq!(patched, None);
 
-    let source = Intermediate::seq().item(1).item(2).item(3);
+    let mut source = Intermediate::seq().item(1).item(2).item(3);
     let expected = Intermediate::seq().item(1).item(2);
     let change = Change::partial_seq()
         .partial_seq_item(1, Change::Removed)
@@ -569,8 +570,10 @@ fn test_versioning() {
         .expect("Could not patch source")
         .unwrap();
     assert_eq!(patched, expected);
+    source.patch_change(&change);
+    assert_eq!(source, expected);
 
-    let source = Intermediate::tuple().item(1).item("hello");
+    let mut source = Intermediate::tuple().item(1).item("hello");
     let expected = Intermediate::tuple().item(1).item("world");
     let change = Change::PartialSeq(vec![
         (0, Change::Same),
@@ -581,8 +584,10 @@ fn test_versioning() {
         .expect("Could not patch source")
         .unwrap();
     assert_eq!(patched, expected);
+    source.patch_change(&change);
+    assert_eq!(source, expected);
 
-    let source = Intermediate::struct_type().field("hey", "hello");
+    let mut source = Intermediate::struct_type().field("hey", "hello");
     let expected = Intermediate::struct_type().field("hi", "hello");
     let change = Change::PartialStruct(vec![
         ("hey".to_owned(), Change::Removed),
@@ -593,6 +598,8 @@ fn test_versioning() {
         .expect("Could not patch source")
         .unwrap();
     assert_eq!(patched, expected);
+    source.patch_change(&change);
+    assert_eq!(source, expected);
 
     let mut prev = Struct {
         bool_value: true,
@@ -687,10 +694,16 @@ fn test_versioning() {
     {
         let patched = change_a.data_patch(&base).unwrap().unwrap();
         assert_eq!(patched, patch_a);
+        let mut base = base.to_owned();
+        base.patch_change(&change_a);
+        assert_eq!(base, patch_a);
     }
     {
         let patched = change_b.data_patch(&base).unwrap().unwrap();
         assert_eq!(patched, patch_b);
+        let mut base = base.to_owned();
+        base.patch_change(&change_b);
+        assert_eq!(base, patch_b);
     }
     {
         let patched = change_a.data_patch(&base).unwrap().unwrap();
@@ -700,6 +713,10 @@ fn test_versioning() {
             list: vec!["foo".to_owned()],
         };
         assert_eq!(patched, expected);
+        let mut base = base.to_owned();
+        base.patch_change(&change_a);
+        base.patch_change(&change_b);
+        assert_eq!(base, expected);
     }
     {
         let patched = change_b.data_patch(&base).unwrap().unwrap();
@@ -709,6 +726,10 @@ fn test_versioning() {
             list: vec!["foo".to_owned()],
         };
         assert_eq!(patched, expected);
+        let mut base = base.to_owned();
+        base.patch_change(&change_b);
+        base.patch_change(&change_a);
+        assert_eq!(base, expected);
     }
 }
 
@@ -812,4 +833,201 @@ fn test_container() {
         crate::from_intermediate::<String>(&deserialized.b).unwrap(),
         b
     );
+}
+
+#[test]
+fn test_dlcs() {
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+    enum ColliderKind {
+        Circle { radius: f32 },
+        Rect { size: (f32, f32) },
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+    enum Primitive {
+        None,
+        Sprite {
+            file: PathBuf,
+            size: (f32, f32),
+            pivot: (f32, f32),
+        },
+        Script {
+            file: PathBuf,
+            properties: HashMap<String, Intermediate>,
+        },
+    }
+
+    impl Default for Primitive {
+        fn default() -> Self {
+            Self::None
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+    enum SceneContent {
+        File(PathBuf),
+        Children(HashMap<String, SceneNode>),
+    }
+
+    impl Default for SceneContent {
+        fn default() -> Self {
+            Self::Children(Default::default())
+        }
+    }
+
+    impl SceneContent {
+        fn with_child(mut self, name: impl ToString, node: SceneNode) -> Self {
+            if let Self::Children(children) = &mut self {
+                children.insert(name.to_string(), node);
+            }
+            self
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+    struct SceneNode {
+        primitive: Primitive,
+        position: (f32, f32),
+        content: SceneContent,
+    }
+
+    impl SceneNode {
+        fn with_primitive(mut self, primitive: Primitive) -> Self {
+            self.primitive = primitive;
+            self
+        }
+
+        fn with_position(mut self, x: f32, y: f32) -> Self {
+            self.position = (x, y);
+            self
+        }
+
+        fn with_content(mut self, content: SceneContent) -> Self {
+            self.content = content;
+            self
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+    enum Asset {
+        Scene(SceneNode),
+        Script(String),
+    }
+
+    #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+    struct Package {
+        base: HashMap<PathBuf, Asset>,
+        changes: HashMap<PathBuf, Change>,
+    }
+
+    impl Package {
+        fn with_base(mut self, path: impl Into<PathBuf>, asset: Asset) -> Self {
+            self.base.insert(path.into(), asset);
+            self
+        }
+
+        fn with_change(mut self, path: impl Into<PathBuf>, change: Change) -> Self {
+            self.changes.insert(path.into(), change);
+            self
+        }
+
+        fn patch(&self, other: &Self) -> Self {
+            let mut base = self
+                .base
+                .iter()
+                .map(|(k, v)| (k.to_owned(), v.to_owned()))
+                .chain(other.base.iter().map(|(k, v)| (k.to_owned(), v.to_owned())))
+                .collect::<HashMap<_, _>>();
+            for (path, change) in &self.changes {
+                if let Some(asset) = base.get_mut(path) {
+                    asset.patch_change(change);
+                }
+            }
+            for (path, change) in &other.changes {
+                if let Some(asset) = base.get_mut(path) {
+                    asset.patch_change(change);
+                }
+            }
+            Self {
+                base,
+                ..Default::default()
+            }
+        }
+    }
+
+    let level_a = Asset::Scene(
+        SceneNode::default().with_content(
+            SceneContent::default()
+                .with_child(
+                    "background",
+                    SceneNode::default().with_primitive(Primitive::Sprite {
+                        file: "summer.png".into(),
+                        size: (1024.0, 1024.0),
+                        pivot: Default::default(),
+                    }),
+                )
+                .with_child(
+                    "player",
+                    SceneNode::default()
+                        .with_primitive(Primitive::Script {
+                            file: "player.lua".into(),
+                            properties: Default::default(),
+                        })
+                        .with_position(100.0, -200.0)
+                        .with_content(SceneContent::default().with_child(
+                            "sprite",
+                            SceneNode::default().with_primitive(Primitive::Sprite {
+                                file: "player.png".into(),
+                                size: (32.0, 32.0),
+                                pivot: (0.5, 0.5),
+                            }),
+                        )),
+                ),
+        ),
+    );
+    let package_a = Package::default().with_base("level", level_a.to_owned());
+
+    let player_b = Asset::Scene(
+        SceneNode::default()
+            .with_primitive(Primitive::Script {
+                file: "player.lua".into(),
+                properties: Default::default(),
+            })
+            .with_position(100.0, -200.0)
+            .with_content(SceneContent::default().with_child(
+                "sprite",
+                SceneNode::default().with_primitive(Primitive::Sprite {
+                    file: "player.png".into(),
+                    size: (32.0, 32.0),
+                    pivot: (0.5, 0.5),
+                }),
+            )),
+    );
+    let level_b = Asset::Scene(
+        SceneNode::default().with_content(
+            SceneContent::default()
+                .with_child(
+                    "background",
+                    SceneNode::default().with_primitive(Primitive::Sprite {
+                        file: "winter.png".into(),
+                        size: (1024.0, 1024.0),
+                        pivot: Default::default(),
+                    }),
+                )
+                .with_child(
+                    "player",
+                    SceneNode::default().with_content(SceneContent::File("player.scn".into())),
+                ),
+        ),
+    );
+    let level_b_diff = Change::data_difference(&level_a, &level_b, &Default::default()).unwrap();
+    let package_b = Package::default()
+        .with_base("player", player_b.to_owned())
+        .with_change("level", level_b_diff);
+    let provided = package_a.patch(&package_b);
+
+    let expected = Package::default()
+        .with_base("level", level_b)
+        .with_base("player", player_b);
+    assert_eq!(provided, expected);
 }

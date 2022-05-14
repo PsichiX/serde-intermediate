@@ -985,7 +985,7 @@ fn test_dlcs() {
                 ),
         ),
     );
-    let package_a = Package::default().with_base("level", level_a.to_owned());
+    let package_a = Package::default().with_base("level.scn", level_a.to_owned());
 
     let player_b = Asset::Scene(
         SceneNode::default()
@@ -993,7 +993,6 @@ fn test_dlcs() {
                 file: "player.lua".into(),
                 properties: Default::default(),
             })
-            .with_position(100.0, -200.0)
             .with_content(SceneContent::default().with_child(
                 "sprite",
                 SceneNode::default().with_primitive(Primitive::Sprite {
@@ -1016,18 +1015,165 @@ fn test_dlcs() {
                 )
                 .with_child(
                     "player",
-                    SceneNode::default().with_content(SceneContent::File("player.scn".into())),
+                    SceneNode::default()
+                        .with_position(100.0, 200.0)
+                        .with_content(SceneContent::File("player.scn".into())),
                 ),
         ),
     );
     let level_b_diff = Change::data_difference(&level_a, &level_b, &Default::default()).unwrap();
     let package_b = Package::default()
-        .with_base("player", player_b.to_owned())
-        .with_change("level", level_b_diff);
-    let provided = package_a.patch(&package_b);
+        .with_base("player.scn", player_b.to_owned())
+        .with_change("level.scn", level_b_diff);
 
+    let enemy_c = Asset::Scene(
+        SceneNode::default()
+            .with_primitive(Primitive::Script {
+                file: "enemy.lua".into(),
+                properties: Default::default(),
+            })
+            .with_content(SceneContent::default().with_child(
+                "sprite",
+                SceneNode::default().with_primitive(Primitive::Sprite {
+                    file: "enemy.png".into(),
+                    size: (64.0, 64.0),
+                    pivot: (0.5, 0.5),
+                }),
+            )),
+    );
+    let level_c = Asset::Scene(
+        SceneNode::default().with_content(
+            SceneContent::default()
+                .with_child(
+                    "background",
+                    SceneNode::default().with_primitive(Primitive::Sprite {
+                        file: "winter.png".into(),
+                        size: (1024.0, 1024.0),
+                        pivot: Default::default(),
+                    }),
+                )
+                .with_child(
+                    "player",
+                    SceneNode::default()
+                        .with_position(100.0, 200.0)
+                        .with_content(SceneContent::File("player.scn".into())),
+                )
+                .with_child(
+                    "enemy",
+                    SceneNode::default()
+                        .with_position(900.0, 800.0)
+                        .with_content(SceneContent::File("enemy.scn".into())),
+                ),
+        ),
+    );
+    let level_c_diff = Change::data_difference(&level_b, &level_c, &Default::default()).unwrap();
+    let package_c = Package::default()
+        .with_base("player.scn", player_b.to_owned())
+        .with_base("enemy.scn", enemy_c.to_owned())
+        .with_change("level.scn", level_c_diff);
+
+    let boss_d = Asset::Scene(
+        SceneNode::default()
+            .with_primitive(Primitive::Script {
+                file: "boss.lua".into(),
+                properties: Default::default(),
+            })
+            .with_content(SceneContent::default().with_child(
+                "sprite",
+                SceneNode::default().with_primitive(Primitive::Sprite {
+                    file: "boss.png".into(),
+                    size: (128.0, 128.0),
+                    pivot: (0.5, 0.5),
+                }),
+            )),
+    );
+    let level_d = Asset::Scene(
+        SceneNode::default().with_content(
+            SceneContent::default()
+                .with_child(
+                    "background",
+                    SceneNode::default().with_primitive(Primitive::Sprite {
+                        file: "winter.png".into(),
+                        size: (1024.0, 1024.0),
+                        pivot: Default::default(),
+                    }),
+                )
+                .with_child(
+                    "player",
+                    SceneNode::default()
+                        .with_position(100.0, 200.0)
+                        .with_content(SceneContent::File("player.scn".into())),
+                )
+                .with_child(
+                    "boss",
+                    SceneNode::default()
+                        .with_position(500.0, 500.0)
+                        .with_content(SceneContent::File("boss.scn".into())),
+                ),
+        ),
+    );
+    let level_d_diff = Change::data_difference(&level_b, &level_d, &Default::default()).unwrap();
+    let package_d = Package::default()
+        .with_base("player.scn", player_b.to_owned())
+        .with_base("boss.scn", boss_d.to_owned())
+        .with_change("level.scn", level_d_diff);
+
+    let result_a_b = package_a.patch(&package_b);
     let expected = Package::default()
-        .with_base("level", level_b)
-        .with_base("player", player_b);
-    assert_eq!(provided, expected);
+        .with_base("level.scn", level_b)
+        .with_base("player.scn", player_b.to_owned());
+    assert_eq!(result_a_b, expected);
+
+    let result_a_b_c = result_a_b.patch(&package_c);
+    let expected = Package::default()
+        .with_base("level.scn", level_c)
+        .with_base("player.scn", player_b.to_owned())
+        .with_base("enemy.scn", enemy_c.to_owned());
+    assert_eq!(result_a_b_c, expected);
+
+    let result_a_b_d = result_a_b.patch(&package_d);
+    let expected = Package::default()
+        .with_base("level.scn", level_d.to_owned())
+        .with_base("player.scn", player_b.to_owned())
+        .with_base("boss.scn", boss_d.to_owned());
+    assert_eq!(result_a_b_d, expected);
+
+    let result_a_b_c_d = result_a_b.patch(&package_c).patch(&package_d);
+    let expected_level_c_d = Asset::Scene(
+        SceneNode::default().with_content(
+            SceneContent::default()
+                .with_child(
+                    "background",
+                    SceneNode::default().with_primitive(Primitive::Sprite {
+                        file: "winter.png".into(),
+                        size: (1024.0, 1024.0),
+                        pivot: Default::default(),
+                    }),
+                )
+                .with_child(
+                    "player",
+                    SceneNode::default()
+                        .with_position(100.0, 200.0)
+                        .with_content(SceneContent::File("player.scn".into())),
+                )
+                .with_child(
+                    "enemy",
+                    SceneNode::default()
+                        .with_position(900.0, 800.0)
+                        .with_content(SceneContent::File("enemy.scn".into())),
+                )
+                .with_child(
+                    "boss",
+                    SceneNode::default()
+                        .with_position(500.0, 500.0)
+                        .with_content(SceneContent::File("boss.scn".into())),
+                ),
+        ),
+    );
+    let expected = Package::default()
+        .with_base("level.scn", expected_level_c_d)
+        .with_base("player.scn", player_b)
+        .with_base("enemy.scn", enemy_c)
+        .with_base("boss.scn", boss_d);
+    assert_eq!(result_a_b_c_d, expected);
 }

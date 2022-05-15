@@ -76,15 +76,15 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
                 }).collect::<Vec<_>>();
                 quote! {
                     impl #impl_generics serde_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {
-                        fn patch_change(&mut self, change: &Change) {
+                        fn patch_change(&mut self, change: &serde_intermediate::Change) {
                             self.before_patch_change();
                             match change {
-                                Change::Changed(v) => {
+                                serde_intermediate::Change::Changed(v) => {
                                     if let Ok(v) = serde_intermediate::from_intermediate(v) {
                                         *self = v;
                                     }
                                 }
-                                Change::PartialStruct(v) => {
+                                serde_intermediate::Change::PartialStruct(v) => {
                                     for (name, change) in v {
                                         match name.as_str() {
                                             #( #fields )*
@@ -104,7 +104,7 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
                 }.into()
             }
             Fields::Unnamed(fields) => {
-                let fields = fields.unnamed.iter().enumerate().filter_map(|(index,field)| {
+                let multiple_fields = fields.unnamed.iter().enumerate().filter_map(|(index,field)| {
                     let attribs = parse_field_attribs(&field.attrs);
                     if attribs.ignore {
                         return None;
@@ -130,20 +130,44 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
                         })
                     }
                 }).collect::<Vec<_>>();
+                let single_field = fields.unnamed.iter().next().and_then(|field| {
+                    let attribs = parse_field_attribs(&field.attrs);
+                    if attribs.ignore {
+                        return None;
+                    }
+                    if attribs.indirect {
+                        Some(quote! {
+                            if let Ok(serialized) = serde_intermediate::to_intermediate(&self.0) {
+                                if let Ok(Some(patched)) = change.patch(&serialized) {
+                                    if let Ok(deserialized) = serde_intermediate::from_intermediate(&patched) {
+                                        self.0 = deserialized;
+                                    }
+                                }
+                            }
+                        })
+                    } else {
+                        Some(quote! {
+                            self.0.patch_change(change);
+                        })
+                    }
+                });
                 quote! {
                     impl #impl_generics serde_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {
-                        fn patch_change(&mut self, change: &Change) {
+                        fn patch_change(&mut self, change: &serde_intermediate::Change) {
                             self.before_patch_change();
                             match change {
-                                Change::Changed(v) => {
+                                serde_intermediate::Change::Changed(v) => {
                                     if let Ok(v) = serde_intermediate::from_intermediate(v) {
                                         *self = v;
                                     }
                                 }
-                                Change::PartialSeq(v) => {
+                                serde_intermediate::Change::PartialChange(change) => {
+                                    #single_field
+                                }
+                                serde_intermediate::Change::PartialSeq(v) => {
                                     for (index, change) in v {
                                         match *index {
-                                            #( #fields )*
+                                            #( #multiple_fields )*
                                             _ => {}
                                         }
                                     }
@@ -261,21 +285,21 @@ pub fn derive_reflect_intermediate(input: TokenStream) -> TokenStream {
             }).collect::<Vec<_>>();
             quote! {
                 impl #impl_generics serde_intermediate::ReflectIntermediate for #name #ty_generics #where_clause {
-                    fn patch_change(&mut self, change: &Change) {
+                    fn patch_change(&mut self, change: &serde_intermediate::Change) {
                         self.before_patch_change();
                         match change {
-                            Change::Changed(v) => {
+                            serde_intermediate::Change::Changed(v) => {
                                 if let Ok(v) = serde_intermediate::from_intermediate(v) {
                                     *self = v;
                                 }
                             }
-                            Change::PartialChange(change) => {
+                            serde_intermediate::Change::PartialChange(change) => {
                                 match self {
                                     #( #new_type_variants )*
                                     _ => {}
                                 }
                             }
-                            Change::PartialStruct(v) => {
+                            serde_intermediate::Change::PartialStruct(v) => {
                                 match self {
                                     #( #struct_variants )*
                                     _ => {}

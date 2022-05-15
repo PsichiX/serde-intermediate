@@ -20,6 +20,23 @@ use std::{
     },
 };
 
+/// Trait used to enable patching changes directly into data.
+/// Prefer to implement using `ReflectIntermediate` derive macro.
+///
+/// # Example
+/// ```rust
+/// use serde::{Serialize, Deserialize};
+/// use serde_intermediate::{Change, ReflectIntermediate};
+///
+/// #[derive(Debug, PartialEq, Serialize, Deserialize, ReflectIntermediate)]
+/// struct Foo(bool);
+///
+/// let mut a = Foo(false);
+/// let b = Foo(true);
+/// let change = Change::data_difference(&a, &b, &Default::default()).unwrap();
+/// a.patch_change(&change);
+/// assert_eq!(a, b);
+/// ```
 pub trait ReflectIntermediate {
     fn patch_change(&mut self, _change: &Change) {}
 

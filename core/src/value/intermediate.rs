@@ -10,56 +10,136 @@ use serde::{
 };
 use std::collections::{HashMap, HashSet};
 
-/// Serde intermediate data.
+/// Serde intermediate data representation.
+///
+/// # Example
+/// ```rust
+/// use std::time::SystemTime;
+/// use serde::{Serialize, Deserialize};
+///
+/// #[derive(Debug, PartialEq, Serialize, Deserialize)]
+/// enum Login {
+///     Email(String),
+///     SocialMedia{
+///         service: String,
+///         token: String,
+///         last_login: Option<SystemTime>,
+///     }
+/// }
+///
+/// #[derive(Debug, PartialEq, Serialize, Deserialize)]
+/// struct Person {
+///     // (first name, last name)
+///     name: (String, String),
+///     age: usize,
+///     login: Login,
+/// }
+///
+/// let data = Person {
+///     name: ("John".to_owned(), "Smith".to_owned()),
+///     age: 40,
+///     login: Login::Email("john.smith@gmail.com".to_owned()),
+/// };
+/// let serialized = serde_intermediate::to_intermediate(&data).unwrap();
+/// let deserialized = serde_intermediate::from_intermediate(&serialized).unwrap();
+/// assert_eq!(data, deserialized);
+/// ```
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Intermediate {
+    /// Unit value: `()`.
     Unit,
+    /// Bool value: `true`.
     Bool(bool),
+    /// 8-bit signed integer value: `42`.
     I8(i8),
+    /// 16-bit signed integer value: `42`.
     I16(i16),
+    /// 32-bit signed integer value: `42`.
     I32(i32),
+    /// 64-bit signed integer value: `42`.
     I64(i64),
+    /// 128-bit signed integer value: `42`.
     I128(i128),
+    /// 8-bit unsigned integer value: `42`.
     U8(u8),
+    /// 16-bit unsigned integer value: `42`.
     U16(u16),
+    /// 32-bit unsigned integer value: `42`.
     U32(u32),
+    /// 64-bit unsigned integer value: `42`.
     U64(u64),
+    /// 128-bit unsigned integer value: `42`.
     U128(u128),
+    /// 32-bit floating point value: `3.14`.
     F32(f32),
+    /// 64-bit floating point value: `3.14`.
     F64(f64),
+    /// Single character value: `'@'`.
     Char(char),
+    /// String value: `"Hello World!"`.
     String(String),
+    /// Bytes buffer.
     Bytes(Vec<u8>),
-    Option(Option<Box<Self>>),
-    // `struct Foo;`
+    /// Option value: `Some(42)`.
+    Option(
+        /// Value.
+        Option<Box<Self>>,
+    ),
+    /// Structure: `struct Foo;`.
     UnitStruct,
-    // `enum Foo { Bar }`
-    /// (variant name)
-    UnitVariant(String),
-    // `struct Foo(bool);`
+    /// Enum unit variant: `enum Foo { Bar }`.
+    UnitVariant(
+        /// Variant name.
+        String,
+    ),
+    /// Newtype struct: `struct Foo(bool);`.
     NewTypeStruct(Box<Self>),
-    // `enum Foo { Bar(bool) }`
-    /// (variant name, value)
-    NewTypeVariant(String, Box<Self>),
-    /// (values: [value])
-    Seq(Vec<Self>),
-    /// `(bool, char)`
-    /// (values: [value])
-    Tuple(Vec<Self>),
-    //  `struct Foo(bool, char)`
-    /// (values: [value])
-    TupleStruct(Vec<Self>),
-    // `enum Foo { Bar(bool, char) }`
-    /// (variant name, values: [value])
-    TupleVariant(String, Vec<Self>),
-    /// (values: [(key, value)])
-    Map(Vec<(Self, Self)>),
-    // `struct Foo { a: bool, b: char }`
-    /// (values: [(name, value)])
-    Struct(Vec<(String, Self)>),
-    // `enum Foo { Bar { a: bool, b: char } }`
-    /// (variant name, values: [(name, value)])
-    StructVariant(String, Vec<(String, Self)>),
+    /// Enum newtype variant: `enum Foo { Bar(bool) }`.
+    NewTypeVariant(
+        /// Variant name.
+        String,
+        /// Value.
+        Box<Self>,
+    ),
+    /// Sequence/list: `Vec<usize>`, `[usize]`.
+    Seq(
+        /// Items.
+        Vec<Self>,
+    ),
+    /// Tuple: `(bool, char)`.
+    Tuple(
+        /// Fields.
+        Vec<Self>,
+    ),
+    /// Tuple struct: `struct Foo(bool, char)`.
+    TupleStruct(
+        /// Fields.
+        Vec<Self>,
+    ),
+    /// Tuple variant: `enum Foo { Bar(bool, char) }`.
+    TupleVariant(
+        /// Variant name.
+        String,
+        /// Fields.
+        Vec<Self>,
+    ),
+    /// Map: `HashMap<String, usize>`.
+    Map(
+        /// Entries: `(key, value)`.
+        Vec<(Self, Self)>,
+    ),
+    /// Struct: `struct Foo { a: bool, b: char }`.
+    Struct(
+        /// Fields: `(name, value)`.
+        Vec<(String, Self)>,
+    ),
+    /// Enum struct variant: `enum Foo { Bar { a: bool, b: char } }`.
+    StructVariant(
+        /// Variant name.
+        String,
+        /// Fields: `(name, value)`.
+        Vec<(String, Self)>,
+    ),
 }
 
 impl Default for Intermediate {
@@ -205,6 +285,73 @@ impl ReflectIntermediate for Intermediate {
     fn patch_change(&mut self, change: &Change) {
         if let Ok(Some(v)) = change.patch(self) {
             *self = v;
+        }
+    }
+}
+
+impl std::fmt::Display for Intermediate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unit | Self::UnitStruct => write!(f, "()"),
+            Self::Bool(v) => write!(f, "{}", v),
+            Self::I8(v) => write!(f, "{}", v),
+            Self::I16(v) => write!(f, "{}", v),
+            Self::I32(v) => write!(f, "{}", v),
+            Self::I64(v) => write!(f, "{}", v),
+            Self::I128(v) => write!(f, "{}", v),
+            Self::U8(v) => write!(f, "{}", v),
+            Self::U16(v) => write!(f, "{}", v),
+            Self::U32(v) => write!(f, "{}", v),
+            Self::U64(v) => write!(f, "{}", v),
+            Self::U128(v) => write!(f, "{}", v),
+            Self::F32(v) => write!(f, "{}", v),
+            Self::F64(v) => write!(f, "{}", v),
+            Self::Char(v) => write!(f, "{}", v),
+            Self::String(v) => write!(f, "{}", v),
+            Self::Bytes(v) => f.debug_list().entries(v.iter()).finish(),
+            Self::Option(v) => {
+                if let Some(v) = v.as_ref() {
+                    write!(f, "{}", v)
+                } else {
+                    write!(f, "~")
+                }
+            }
+            Self::UnitVariant(n) => write!(f, "{}", n),
+            Self::NewTypeStruct(v) => write!(f, "{}", v),
+            Self::NewTypeVariant(n, v) => f.debug_tuple(n).field(v).finish(),
+            Self::Seq(v) => f.debug_list().entries(v.iter()).finish(),
+            Self::Tuple(v) | Self::TupleStruct(v) => {
+                let mut f = f.debug_tuple("");
+                for v in v {
+                    f.field(v);
+                }
+                f.finish()
+            }
+            Self::TupleVariant(n, v) => {
+                let mut f = f.debug_tuple(n);
+                for v in v {
+                    f.field(v);
+                }
+                f.finish()
+            }
+            Self::Map(v) => f
+                .debug_map()
+                .entries(v.iter().map(|&(ref k, ref v)| (k, v)))
+                .finish(),
+            Self::Struct(v) => {
+                let mut f = f.debug_struct("");
+                for (k, v) in v {
+                    f.field(k, v);
+                }
+                f.finish()
+            }
+            Self::StructVariant(n, v) => {
+                let mut f = f.debug_struct(n);
+                for (k, v) in v {
+                    f.field(k, v);
+                }
+                f.finish()
+            }
         }
     }
 }

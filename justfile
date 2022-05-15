@@ -21,6 +21,15 @@ checks:
   just test
   just clippy
 
+docs:
+  cargo doc --workspace --no-deps
+
+docs-open:
+  cargo doc --workspace --no-deps --open
+
+bake-readme:
+  cargo readme --project-root ./core/ > README.md
+
 list-outdated:
   cargo outdated -R -w
 

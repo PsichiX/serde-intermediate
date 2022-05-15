@@ -2,7 +2,7 @@
 mod tests;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_intermediate::{error::Result, Intermediate};
+use serde_intermediate::{error::Result, Intermediate, ReflectIntermediate};
 use std::{
     any::{type_name, Any, TypeId},
     sync::{Arc, RwLock},
@@ -23,6 +23,7 @@ fn construct<T: DeserializeOwned + 'static>(data: &Intermediate) -> Result<Box<d
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[cfg_attr(feature = "derive", derive(ReflectIntermediate))]
 pub struct TaggedIntermediate {
     type_tag: String,
     #[serde(default)]

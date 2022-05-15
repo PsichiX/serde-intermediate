@@ -1,6 +1,6 @@
 [package]
 name = "serde-tagged-intermediate"
-version = "1.4.0"
+version = "1.4.1"
 authors = ["Patryk 'PsichiX' Budzynski <psichix@gmail.com>"]
 edition = "2021"
 description = "Tagged intermediate representation for Serde serialization"
@@ -10,10 +10,14 @@ repository = "https://github.com/PsichiX/serde-tagged-intermediate"
 documentation = "https://docs.rs/serde-tagged-intermediate"
 readme = "../README.md"
 
+[features]
+default = ["derive"]
+derive = ["serde-intermediate/derive"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 lazy_static = "1.4"
-serde-intermediate = { version = "1.4", path = "../core" }
+serde-intermediate = { version = "1.4", path = "../core", default-features = false }
 
 [dev-dependencies]
 serde_json = "1"

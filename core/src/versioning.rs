@@ -2,15 +2,25 @@ use crate::{error::*, value::intermediate::Intermediate};
 use petgraph::{algo::astar, Graph};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+/// Optimization hint used in calculating change between two intermediate data.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum DiffOptimizationHint {
+    /// Don't assume any optimization.
     Default,
+    /// Put entire new object if change information size is greater than source (old) size.
     SizeSource,
+    /// Put entire new object if change information size is greater than target (new) size.
     SizeTarget,
-    /// (bytesize threshold)
-    SizeValue(usize),
-    /// (percentage threshold)
-    SizePercentage(f64),
+    /// Put entire new object if change information size is greater than bytesize threshold.
+    SizeValue(
+        /// Bytesize threshold.
+        usize,
+    ),
+    /// Put entire new object if change information size is greater than percentage of source size.
+    SizePercentage(
+        /// Percentage threshold.
+        f64,
+    ),
 }
 
 impl Default for DiffOptimizationHint {
@@ -19,8 +29,10 @@ impl Default for DiffOptimizationHint {
     }
 }
 
+/// Change calculation options.
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct DiffOptions {
+    /// Optimization hint.
     pub optimization_hint: DiffOptimizationHint,
 }
 
@@ -31,22 +43,43 @@ impl DiffOptions {
     }
 }
 
+/// Information about change between two intermediate data.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum Change {
+    /// Values are same.
     Same,
+    /// Value was removed.
     Removed,
-    /// (value)
-    Changed(Intermediate),
-    /// (value)
-    Added(Intermediate),
-    /// (change)
-    PartialChange(Box<Change>),
-    /// (changes: [(index, change)])
-    PartialSeq(Vec<(usize, Change)>),
-    /// (changes: [(key, change)])
-    PartialMap(Vec<(Intermediate, Change)>),
-    /// (changes: [(name, change)])
-    PartialStruct(Vec<(String, Change)>),
+    /// Value was entirely changed.
+    Changed(
+        /// Value.
+        Intermediate,
+    ),
+    /// Value was added.
+    Added(
+        /// Value.
+        Intermediate,
+    ),
+    /// Value was partially changed.
+    PartialChange(
+        /// Content change.
+        Box<Change>,
+    ),
+    /// Sequence of values was partially changed.
+    PartialSeq(
+        /// List of changes: `(index, change)`.
+        Vec<(usize, Change)>,
+    ),
+    /// Map of key-values was partially changed.
+    PartialMap(
+        /// List of changes: `(key, change)`.
+        Vec<(Intermediate, Change)>,
+    ),
+    /// Structure with field-value was partially changed.
+    PartialStruct(
+        /// List of changes: `(field, change)`.
+        Vec<(String, Change)>,
+    ),
 }
 
 impl Change {

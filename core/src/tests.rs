@@ -1357,24 +1357,24 @@ fn test_editor_communication() {
     world.add_attack(Entity(0), Attack::Direct(0.0));
 
     let snapshot = world.entity_snapshot(Entity(0)).unwrap();
-    let snapshot = serde_json::to_string(&snapshot).unwrap();
+    let snapshot = pot::to_vec(&snapshot).unwrap();
     game_sender.send(snapshot).unwrap();
 
     let mut editor = Editor::default();
     let snapshot = editor_receiver.recv().unwrap();
-    editor.selected = Some(serde_json::from_str::<EntitySnapshot>(&snapshot).unwrap());
+    editor.selected = Some(pot::from_slice::<EntitySnapshot>(&snapshot).unwrap());
     let change = editor
         .change_selected::<Position, _>(|position| Position {
             x: position.x + 10.0,
             y: position.y,
         })
         .unwrap();
-    let change = serde_json::to_string(&change).unwrap();
+    let change = pot::to_vec(&change).unwrap();
     editor_sender.send(change).unwrap();
     let change = editor
         .change_selected::<Health, _>(|health| Health(health.0 + 10.0))
         .unwrap();
-    let change = serde_json::to_string(&change).unwrap();
+    let change = pot::to_vec(&change).unwrap();
     editor_sender.send(change).unwrap();
     let change = editor
         .change_selected::<Attack, _>(|_| Attack::Ranged {
@@ -1382,11 +1382,11 @@ fn test_editor_communication() {
             value: 10.0,
         })
         .unwrap();
-    let change = serde_json::to_string(&change).unwrap();
+    let change = pot::to_vec(&change).unwrap();
     editor_sender.send(change).unwrap();
 
     while let Ok(change) = game_receiver.try_recv() {
-        let change = serde_json::from_str::<EditorChange>(&change).unwrap();
+        let change = pot::from_slice::<EditorChange>(&change).unwrap();
         world.apply_editor_change(&change);
     }
     assert_eq!(

@@ -4,7 +4,7 @@ use crate::{
     versioning::{Change, DiffOptimizationHint, DiffOptions},
     Intermediate, ReflectIntermediate,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     cell::Cell,
     collections::{
@@ -12,6 +12,7 @@ use std::{
         {HashMap, HashSet},
     },
     path::PathBuf,
+    sync::mpsc::channel,
     sync::Mutex,
 };
 
@@ -56,31 +57,31 @@ enum Enum {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
 struct Struct {
-    pub bool_value: bool,
-    pub i8_value: i8,
-    pub i16_value: i16,
-    pub i32_value: i32,
-    pub i64_value: i64,
-    pub i128_value: i128,
-    pub u8_value: u8,
-    pub u16_value: u16,
-    pub u32_value: u32,
-    pub u64_value: u64,
-    pub u128_value: u128,
-    pub f32_value: f32,
-    pub f64_value: f64,
-    pub char_value: char,
-    pub string_value: String,
-    pub tuple: (bool, usize),
-    pub bytes: Vec<u8>,
-    pub option: Option<UnitStruct>,
-    pub list: Vec<usize>,
-    pub set: HashSet<usize>,
-    pub string_map: HashMap<String, usize>,
-    pub integer_map: HashMap<usize, usize>,
-    pub enum_value: Enum,
-    pub new_type_struct: NewTypeStruct,
-    pub tuple_struct: TupleStruct,
+    bool_value: bool,
+    i8_value: i8,
+    i16_value: i16,
+    i32_value: i32,
+    i64_value: i64,
+    i128_value: i128,
+    u8_value: u8,
+    u16_value: u16,
+    u32_value: u32,
+    u64_value: u64,
+    u128_value: u128,
+    f32_value: f32,
+    f64_value: f64,
+    char_value: char,
+    string_value: String,
+    tuple: (bool, usize),
+    bytes: Vec<u8>,
+    option: Option<UnitStruct>,
+    list: Vec<usize>,
+    set: HashSet<usize>,
+    string_map: HashMap<String, usize>,
+    integer_map: HashMap<usize, usize>,
+    enum_value: Enum,
+    new_type_struct: NewTypeStruct,
+    tuple_struct: TupleStruct,
 }
 
 #[test]
@@ -210,9 +211,6 @@ fn test_struct() {
     let content = ron::to_string(&serialized).unwrap();
     let deserialized = ron::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
-    let content = bincode::serialize(&serialized).unwrap();
-    let deserialized = bincode::deserialize::<Foo>(&content).unwrap();
-    assert_eq!(data, deserialized);
 }
 
 #[test]
@@ -244,17 +242,17 @@ fn test_enum() {
     let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
     assert_eq!(data, deserialized);
 
-    let serialized = Intermediate::unit_variant("A", 0);
+    let serialized = Intermediate::unit_variant("A");
     let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
     let data = Foo::A;
     assert_eq!(data, deserialized);
 
-    let serialized = Intermediate::tuple_variant("B", 1).item(true).item('@');
+    let serialized = Intermediate::tuple_variant("B").item(true).item('@');
     let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
     let data = Foo::B(true, '@');
     assert_eq!(data, deserialized);
 
-    let serialized = Intermediate::struct_variant("C", 2)
+    let serialized = Intermediate::struct_variant("C")
         .field("a", true)
         .field("b", '@');
     let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
@@ -272,9 +270,6 @@ fn test_enum() {
     let content = ron::to_string(&serialized).unwrap();
     let deserialized = ron::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
-    let content = bincode::serialize(&serialized).unwrap();
-    let deserialized = bincode::deserialize::<Foo>(&content).unwrap();
-    assert_eq!(data, deserialized);
 
     let data = Foo::B(true, '@');
     let serialized = crate::serialize(&data).unwrap();
@@ -287,9 +282,6 @@ fn test_enum() {
     let content = ron::to_string(&serialized).unwrap();
     let deserialized = ron::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
-    let content = bincode::serialize(&serialized).unwrap();
-    let deserialized = bincode::deserialize::<Foo>(&content).unwrap();
-    assert_eq!(data, deserialized);
 
     let data = Foo::C { a: true, b: '@' };
     let serialized = crate::serialize(&data).unwrap();
@@ -301,9 +293,6 @@ fn test_enum() {
     assert_eq!(data, deserialized);
     let content = ron::to_string(&serialized).unwrap();
     let deserialized = ron::from_str::<Foo>(&content).unwrap();
-    assert_eq!(data, deserialized);
-    let content = bincode::serialize(&serialized).unwrap();
-    let deserialized = bincode::deserialize::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
 }
 
@@ -1176,4 +1165,240 @@ fn test_dlcs() {
         .with_base("enemy.scn", enemy_c)
         .with_base("boss.scn", boss_d);
     assert_eq!(result_a_b_c_d, expected);
+}
+
+#[test]
+fn test_editor_communication() {
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Hash, Eq)]
+    enum ComponentType {
+        Health,
+        Attack,
+        Position,
+    }
+
+    trait Component {
+        fn get_type() -> ComponentType;
+    }
+
+    #[derive(
+        Debug, Default, Copy, Clone, PartialEq, Serialize, Deserialize, ReflectIntermediate,
+    )]
+    struct Health(f32);
+
+    impl Component for Health {
+        fn get_type() -> ComponentType {
+            ComponentType::Health
+        }
+    }
+
+    #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, ReflectIntermediate)]
+    enum Attack {
+        Direct(f32),
+        Ranged { range: f32, value: f32 },
+    }
+
+    impl Component for Attack {
+        fn get_type() -> ComponentType {
+            ComponentType::Attack
+        }
+    }
+
+    #[derive(
+        Debug, Default, Copy, Clone, PartialEq, Serialize, Deserialize, ReflectIntermediate,
+    )]
+    struct Position {
+        x: f32,
+        y: f32,
+    }
+
+    impl Component for Position {
+        fn get_type() -> ComponentType {
+            ComponentType::Position
+        }
+    }
+
+    #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Hash, Eq)]
+    struct Entity(usize);
+
+    #[derive(Debug, Default)]
+    struct World {
+        health_components: HashMap<Entity, Health>,
+        attack_components: HashMap<Entity, Attack>,
+        position_components: HashMap<Entity, Position>,
+    }
+
+    impl World {
+        fn add_health(&mut self, entity: Entity, health: Health) {
+            self.health_components.insert(entity, health);
+        }
+
+        fn add_attack(&mut self, entity: Entity, attack: Attack) {
+            self.attack_components.insert(entity, attack);
+        }
+
+        fn add_position(&mut self, entity: Entity, position: Position) {
+            self.position_components.insert(entity, position);
+        }
+
+        fn health(&self, entity: Entity) -> Option<&Health> {
+            self.health_components.get(&entity)
+        }
+
+        fn attack(&self, entity: Entity) -> Option<&Attack> {
+            self.attack_components.get(&entity)
+        }
+
+        fn position(&self, entity: Entity) -> Option<&Position> {
+            self.position_components.get(&entity)
+        }
+
+        fn entity_snapshot(&self, entity: Entity) -> Option<EntitySnapshot> {
+            let mut components = HashMap::<_, _>::default();
+            let mut exists = false;
+            if let Some(health) = self.health_components.get(&entity) {
+                components.insert(
+                    ComponentType::Health,
+                    crate::to_intermediate(health).unwrap(),
+                );
+                exists = true;
+            }
+            if let Some(attack) = self.attack_components.get(&entity) {
+                components.insert(
+                    ComponentType::Attack,
+                    crate::to_intermediate(attack).unwrap(),
+                );
+                exists = true;
+            }
+            if let Some(position) = self.position_components.get(&entity) {
+                components.insert(
+                    ComponentType::Position,
+                    crate::to_intermediate(position).unwrap(),
+                );
+                exists = true;
+            }
+            if exists {
+                Some(EntitySnapshot { entity, components })
+            } else {
+                None
+            }
+        }
+
+        fn apply_editor_change(&mut self, change: &EditorChange) {
+            match change.component {
+                ComponentType::Health => {
+                    if let Some(data) = self.health_components.get_mut(&change.entity) {
+                        data.patch_change(&change.change);
+                    }
+                }
+                ComponentType::Attack => {
+                    if let Some(data) = self.attack_components.get_mut(&change.entity) {
+                        data.patch_change(&change.change);
+                    }
+                }
+                ComponentType::Position => {
+                    if let Some(data) = self.position_components.get_mut(&change.entity) {
+                        data.patch_change(&change.change);
+                    }
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    struct EntitySnapshot {
+        entity: Entity,
+        components: HashMap<ComponentType, Intermediate>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    struct EditorChange {
+        entity: Entity,
+        component: ComponentType,
+        change: Change,
+    }
+
+    #[derive(Default)]
+    struct Editor {
+        selected: Option<EntitySnapshot>,
+    }
+
+    impl Editor {
+        fn change_selected<T, F>(&mut self, mut f: F) -> Option<EditorChange>
+        where
+            T: Component + Serialize + DeserializeOwned + std::fmt::Debug,
+            F: FnMut(T) -> T,
+        {
+            let type_ = T::get_type();
+            let snapshot = self.selected.as_mut()?;
+            let entity = snapshot.entity;
+            let value = snapshot.components.get_mut(&type_)?;
+            let data = crate::from_intermediate(value).unwrap();
+            let data = f(data);
+            let serialized = crate::to_intermediate(&data).unwrap();
+            let change = Change::difference(value, &serialized, &Default::default());
+            if change.is_same() {
+                return None;
+            }
+            *value = serialized;
+            Some(EditorChange {
+                entity,
+                component: type_,
+                change,
+            })
+        }
+    }
+
+    let (game_sender, editor_receiver) = channel();
+    let (editor_sender, game_receiver) = channel();
+
+    let mut world = World::default();
+    world.add_position(Entity(0), Default::default());
+    world.add_health(Entity(0), Health(100.0));
+    world.add_attack(Entity(0), Attack::Direct(0.0));
+
+    let snapshot = world.entity_snapshot(Entity(0)).unwrap();
+    let snapshot = serde_json::to_string(&snapshot).unwrap();
+    game_sender.send(snapshot).unwrap();
+
+    let mut editor = Editor::default();
+    let snapshot = editor_receiver.recv().unwrap();
+    editor.selected = Some(serde_json::from_str::<EntitySnapshot>(&snapshot).unwrap());
+    let change = editor
+        .change_selected::<Position, _>(|position| Position {
+            x: position.x + 10.0,
+            y: position.y,
+        })
+        .unwrap();
+    let change = serde_json::to_string(&change).unwrap();
+    editor_sender.send(change).unwrap();
+    let change = editor
+        .change_selected::<Health, _>(|health| Health(health.0 + 10.0))
+        .unwrap();
+    let change = serde_json::to_string(&change).unwrap();
+    editor_sender.send(change).unwrap();
+    let change = editor
+        .change_selected::<Attack, _>(|_| Attack::Ranged {
+            range: 10.0,
+            value: 10.0,
+        })
+        .unwrap();
+    let change = serde_json::to_string(&change).unwrap();
+    editor_sender.send(change).unwrap();
+
+    while let Ok(change) = game_receiver.try_recv() {
+        let change = serde_json::from_str::<EditorChange>(&change).unwrap();
+        world.apply_editor_change(&change);
+    }
+    assert_eq!(
+        world.position(Entity(0)).unwrap(),
+        &Position { x: 10.0, y: 0.0 }
+    );
+    assert_eq!(world.health(Entity(0)).unwrap(), &Health(110.0));
+    assert_eq!(
+        world.attack(Entity(0)).unwrap(),
+        &Attack::Ranged {
+            range: 10.0,
+            value: 10.0
+        }
+    );
 }

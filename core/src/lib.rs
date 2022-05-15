@@ -10,7 +10,8 @@ pub mod versioning;
 
 pub use crate::{
     de::intermediate::deserialize, de::intermediate::deserialize as from_intermediate,
-    error::Error, reflect::ReflectIntermediate, ser::intermediate::serialize,
+    de::intermediate::deserialize_as as from_intermediate_as, error::Error,
+    reflect::ReflectIntermediate, ser::intermediate::serialize,
     ser::intermediate::serialize as to_intermediate, value::intermediate::Intermediate,
     versioning::*,
 };

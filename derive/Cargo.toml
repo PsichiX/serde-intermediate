@@ -1,6 +1,6 @@
 [package]
 name = "serde-intermediate-derive"
-version = "1.3.2"
+version = "1.4.0"
 authors = ["Patryk 'PsichiX' Budzynski <psichix@gmail.com>"]
 edition = "2021"
 description = "Derive proc macro for intermediate representation of Serde serialization"

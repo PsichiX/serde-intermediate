@@ -6,20 +6,41 @@ use serde::{
     forward_to_deserialize_any, Deserialize,
 };
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum DeserializeMode {
+    Exact,
+    Interpret,
+}
+
+impl Default for DeserializeMode {
+    fn default() -> Self {
+        Self::Interpret
+    }
+}
+
 pub fn deserialize<'a, T>(value: &'a Intermediate) -> Result<T>
 where
     T: Deserialize<'a>,
 {
-    T::deserialize(Deserializer::from_intermediate(value))
+    T::deserialize(Deserializer::from_intermediate(value, Default::default()))
 }
 
+pub fn deserialize_as<'a, T>(value: &'a Intermediate, mode: DeserializeMode) -> Result<T>
+where
+    T: Deserialize<'a>,
+{
+    T::deserialize(Deserializer::from_intermediate(value, mode))
+}
+
+#[derive(Debug)]
 pub struct Deserializer<'de> {
     input: &'de Intermediate,
+    mode: DeserializeMode,
 }
 
 impl<'de> Deserializer<'de> {
-    pub fn from_intermediate(input: &'de Intermediate) -> Self {
-        Self { input }
+    pub fn from_intermediate(input: &'de Intermediate, mode: DeserializeMode) -> Self {
+        Self { input, mode }
     }
 }
 
@@ -49,43 +70,200 @@ impl<'de> serde::de::Deserializer<'de> for Deserializer<'de> {
             Intermediate::String(v) => visitor.visit_borrowed_str(v),
             Intermediate::Bytes(v) => visitor.visit_bytes(v),
             Intermediate::Option(v) => match v {
-                Some(v) => visitor.visit_some(Self::from_intermediate(v)),
+                Some(v) => visitor.visit_some(Self::from_intermediate(v, self.mode)),
                 None => visitor.visit_none(),
             },
             Intermediate::UnitStruct => visitor.visit_unit(),
-            Intermediate::UnitVariant(n, i) => visitor.visit_enum(EnumDeserializer::Unit(n, *i)),
+            Intermediate::UnitVariant(n) => visitor.visit_enum(EnumDeserializer::Unit { name: n }),
             Intermediate::NewTypeStruct(v) => {
-                visitor.visit_newtype_struct(Self::from_intermediate(v))
+                visitor.visit_newtype_struct(Self::from_intermediate(v, self.mode))
             }
-            Intermediate::NewTypeVariant(n, i, v) => {
-                visitor.visit_enum(EnumDeserializer::NewType(n, *i, v))
-            }
+            Intermediate::NewTypeVariant(n, v) => visitor.visit_enum(EnumDeserializer::NewType {
+                name: n,
+                content: v,
+                mode: self.mode,
+            }),
             Intermediate::Seq(v) | Intermediate::Tuple(v) | Intermediate::TupleStruct(v) => visitor
                 .visit_seq(SeqDeserializer {
                     values: v.as_slice(),
                     index: 0,
+                    mode: self.mode,
                 }),
-            Intermediate::TupleVariant(n, i, v) => {
-                visitor.visit_enum(EnumDeserializer::Tuple(n, *i, v))
-            }
+            Intermediate::TupleVariant(n, v) => visitor.visit_enum(EnumDeserializer::Tuple {
+                name: n,
+                content: v,
+                mode: self.mode,
+            }),
             Intermediate::Map(v) => visitor.visit_map(MapDeserializer {
                 values: v.as_slice(),
                 index: 0,
+                mode: self.mode,
             }),
             Intermediate::Struct(v) => visitor.visit_map(StructDeserializer {
                 values: v.as_slice(),
                 index: 0,
+                mode: self.mode,
             }),
-            Intermediate::StructVariant(n, i, v) => {
-                visitor.visit_enum(EnumDeserializer::Struct(n, *i, v))
+            Intermediate::StructVariant(n, v) => visitor.visit_enum(EnumDeserializer::Struct {
+                name: n,
+                content: EnumDeserializerStructContent::Fields(v),
+                mode: self.mode,
+            }),
+        }
+    }
+
+    fn deserialize_newtype_struct<V>(self, _: &'static str, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        if self.mode == DeserializeMode::Interpret {
+            match self.input {
+                Intermediate::Option(v) => {
+                    if let Some(v) = v {
+                        return visitor.visit_newtype_struct(Self::from_intermediate(v, self.mode));
+                    }
+                }
+                Intermediate::NewTypeStruct(_) => {}
+                Intermediate::NewTypeVariant(_, v) => {
+                    return visitor.visit_newtype_struct(Self::from_intermediate(v, self.mode));
+                }
+                Intermediate::Seq(v)
+                | Intermediate::Tuple(v)
+                | Intermediate::TupleStruct(v)
+                | Intermediate::TupleVariant(_, v) => {
+                    if v.len() == 1 {
+                        return visitor.visit_newtype_struct(Self::from_intermediate(
+                            v.get(0).unwrap(),
+                            self.mode,
+                        ));
+                    }
+                }
+                Intermediate::Map(v) => {
+                    if v.len() == 1 {
+                        return visitor.visit_newtype_struct(Self::from_intermediate(
+                            &v.get(0).unwrap().1,
+                            self.mode,
+                        ));
+                    }
+                }
+                Intermediate::Struct(v) | Intermediate::StructVariant(_, v) => {
+                    if v.len() == 1 {
+                        return visitor.visit_newtype_struct(Self::from_intermediate(
+                            &v.get(0).unwrap().1,
+                            self.mode,
+                        ));
+                    }
+                }
+                _ => return visitor.visit_newtype_struct(self),
             }
         }
+        self.deserialize_any(visitor)
+    }
+
+    fn deserialize_enum<V>(
+        self,
+        _: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        if self.mode == DeserializeMode::Interpret {
+            match self.input {
+                Intermediate::String(v) => {
+                    return visitor.visit_enum(EnumDeserializer::Unit { name: v })
+                }
+                Intermediate::Map(v) => {
+                    if v.len() == 1 {
+                        let (k, v) = v.get(0).unwrap();
+                        if let Intermediate::String(k) = k {
+                            if variants.contains(&k.as_str()) {
+                                match v {
+                                    Intermediate::Seq(v)
+                                    | Intermediate::Tuple(v)
+                                    | Intermediate::TupleStruct(v) => {
+                                        return visitor.visit_enum(EnumDeserializer::Tuple {
+                                            name: k,
+                                            content: v,
+                                            mode: self.mode,
+                                        })
+                                    }
+                                    Intermediate::Map(v) => {
+                                        return visitor.visit_enum(EnumDeserializer::Struct {
+                                            name: k,
+                                            content: EnumDeserializerStructContent::Entries(v),
+                                            mode: self.mode,
+                                        })
+                                    }
+                                    Intermediate::Struct(v) => {
+                                        return visitor.visit_enum(EnumDeserializer::Struct {
+                                            name: k,
+                                            content: EnumDeserializerStructContent::Fields(v),
+                                            mode: self.mode,
+                                        })
+                                    }
+                                    _ => {
+                                        return visitor.visit_enum(EnumDeserializer::NewType {
+                                            name: k,
+                                            content: v,
+                                            mode: self.mode,
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Intermediate::Struct(v) => {
+                    if v.len() == 1 {
+                        let (k, v) = v.get(0).unwrap();
+                        if variants.contains(&k.as_str()) {
+                            match v {
+                                Intermediate::Seq(v)
+                                | Intermediate::Tuple(v)
+                                | Intermediate::TupleStruct(v) => {
+                                    return visitor.visit_enum(EnumDeserializer::Tuple {
+                                        name: k,
+                                        content: v,
+                                        mode: self.mode,
+                                    })
+                                }
+                                Intermediate::Map(v) => {
+                                    return visitor.visit_enum(EnumDeserializer::Struct {
+                                        name: k,
+                                        content: EnumDeserializerStructContent::Entries(v),
+                                        mode: self.mode,
+                                    })
+                                }
+                                Intermediate::Struct(v) => {
+                                    return visitor.visit_enum(EnumDeserializer::Struct {
+                                        name: k,
+                                        content: EnumDeserializerStructContent::Fields(v),
+                                        mode: self.mode,
+                                    })
+                                }
+                                _ => {
+                                    return visitor.visit_enum(EnumDeserializer::NewType {
+                                        name: k,
+                                        content: v,
+                                        mode: self.mode,
+                                    })
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.deserialize_any(visitor)
     }
 
     forward_to_deserialize_any! {
         bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
-        bytes byte_buf option unit unit_struct newtype_struct seq tuple
-        tuple_struct map struct enum identifier ignored_any
+        bytes byte_buf option unit unit_struct seq tuple
+        tuple_struct map struct identifier ignored_any
     }
 }
 
@@ -93,6 +271,7 @@ impl<'de> serde::de::Deserializer<'de> for Deserializer<'de> {
 pub struct SeqDeserializer<'de> {
     values: &'de [Intermediate],
     index: usize,
+    mode: DeserializeMode,
 }
 
 impl<'de> SeqAccess<'de> for SeqDeserializer<'de> {
@@ -105,7 +284,7 @@ impl<'de> SeqAccess<'de> for SeqDeserializer<'de> {
         if let Some(value) = self.values.get(self.index) {
             self.index += 1;
             return seed
-                .deserialize(Deserializer::from_intermediate(value))
+                .deserialize(Deserializer::from_intermediate(value, self.mode))
                 .map(Some);
         }
         Ok(None)
@@ -116,6 +295,7 @@ impl<'de> SeqAccess<'de> for SeqDeserializer<'de> {
 pub struct MapDeserializer<'de> {
     values: &'de [(Intermediate, Intermediate)],
     index: usize,
+    mode: DeserializeMode,
 }
 
 impl<'de> MapAccess<'de> for MapDeserializer<'de> {
@@ -127,7 +307,7 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
     {
         if let Some((key, _)) = self.values.get(self.index) {
             return seed
-                .deserialize(Deserializer::from_intermediate(key))
+                .deserialize(Deserializer::from_intermediate(key, self.mode))
                 .map(Some);
         }
         Ok(None)
@@ -139,7 +319,7 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
     {
         if let Some((_, value)) = self.values.get(self.index) {
             self.index += 1;
-            return seed.deserialize(Deserializer::from_intermediate(value));
+            return seed.deserialize(Deserializer::from_intermediate(value, self.mode));
         }
         Err(Error::ExpectedMapEntry)
     }
@@ -151,8 +331,8 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
     {
         if let Some((key, value)) = self.values.get(self.index) {
             self.index += 1;
-            let key = kseed.deserialize(Deserializer::from_intermediate(key))?;
-            let value = vseed.deserialize(Deserializer::from_intermediate(value))?;
+            let key = kseed.deserialize(Deserializer::from_intermediate(key, self.mode))?;
+            let value = vseed.deserialize(Deserializer::from_intermediate(value, self.mode))?;
             return Ok(Some((key, value)));
         }
         Ok(None)
@@ -163,6 +343,7 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
 pub struct StructDeserializer<'de> {
     values: &'de [(String, Intermediate)],
     index: usize,
+    mode: DeserializeMode,
 }
 
 impl<'de> MapAccess<'de> for StructDeserializer<'de> {
@@ -184,7 +365,7 @@ impl<'de> MapAccess<'de> for StructDeserializer<'de> {
     {
         if let Some((_, value)) = self.values.get(self.index) {
             self.index += 1;
-            return seed.deserialize(Deserializer::from_intermediate(value));
+            return seed.deserialize(Deserializer::from_intermediate(value, self.mode));
         }
         Err(Error::ExpectedStructField)
     }
@@ -197,7 +378,7 @@ impl<'de> MapAccess<'de> for StructDeserializer<'de> {
         if let Some((key, value)) = self.values.get(self.index) {
             self.index += 1;
             let key = kseed.deserialize(key.as_str().into_deserializer())?;
-            let value = vseed.deserialize(Deserializer::from_intermediate(value))?;
+            let value = vseed.deserialize(Deserializer::from_intermediate(value, self.mode))?;
             return Ok(Some((key, value)));
         }
         Ok(None)
@@ -205,20 +386,40 @@ impl<'de> MapAccess<'de> for StructDeserializer<'de> {
 }
 
 #[derive(Debug)]
+enum EnumDeserializerStructContent<'de> {
+    Entries(&'de [(Intermediate, Intermediate)]),
+    Fields(&'de [(String, Intermediate)]),
+}
+
+#[derive(Debug)]
 enum EnumDeserializer<'de> {
-    Unit(&'de str, u32),
-    NewType(&'de str, u32, &'de Intermediate),
-    Tuple(&'de str, u32, &'de [Intermediate]),
-    Struct(&'de str, u32, &'de [(String, Intermediate)]),
+    Unit {
+        name: &'de str,
+    },
+    NewType {
+        name: &'de str,
+        content: &'de Intermediate,
+        mode: DeserializeMode,
+    },
+    Tuple {
+        name: &'de str,
+        content: &'de [Intermediate],
+        mode: DeserializeMode,
+    },
+    Struct {
+        name: &'de str,
+        content: EnumDeserializerStructContent<'de>,
+        mode: DeserializeMode,
+    },
 }
 
 impl<'de> EnumDeserializer<'de> {
     fn name(&self) -> &'de str {
         match self {
-            Self::Unit(n, _)
-            | Self::NewType(n, _, _)
-            | Self::Tuple(n, _, _)
-            | Self::Struct(n, _, _) => n,
+            Self::Unit { name }
+            | Self::NewType { name, .. }
+            | Self::Tuple { name, .. }
+            | Self::Struct { name, .. } => name,
         }
     }
 }
@@ -240,7 +441,7 @@ impl<'de> VariantAccess<'de> for EnumDeserializer<'de> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<()> {
-        if let EnumDeserializer::Unit(_, _) = self {
+        if let EnumDeserializer::Unit { .. } = self {
             return Ok(());
         }
         Err(Error::ExpectedUnitVariant)
@@ -250,8 +451,8 @@ impl<'de> VariantAccess<'de> for EnumDeserializer<'de> {
     where
         T: DeserializeSeed<'de>,
     {
-        if let EnumDeserializer::NewType(_, _, v) = self {
-            return seed.deserialize(Deserializer::from_intermediate(v));
+        if let EnumDeserializer::NewType { content, mode, .. } = self {
+            return seed.deserialize(Deserializer::from_intermediate(content, mode));
         }
         Err(Error::ExpectedNewTypeVariant)
     }
@@ -260,10 +461,11 @@ impl<'de> VariantAccess<'de> for EnumDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        if let EnumDeserializer::Tuple(_, _, v) = self {
+        if let EnumDeserializer::Tuple { content, mode, .. } = self {
             return visitor.visit_seq(SeqDeserializer {
-                values: v,
+                values: content,
                 index: 0,
+                mode,
             });
         }
         Err(Error::ExpectedNewTypeVariant)
@@ -273,11 +475,23 @@ impl<'de> VariantAccess<'de> for EnumDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        if let EnumDeserializer::Struct(_, _, v) = self {
-            return visitor.visit_map(StructDeserializer {
-                values: v,
-                index: 0,
-            });
+        if let EnumDeserializer::Struct { content, mode, .. } = self {
+            match content {
+                EnumDeserializerStructContent::Entries(content) => {
+                    return visitor.visit_map(MapDeserializer {
+                        values: content,
+                        index: 0,
+                        mode,
+                    })
+                }
+                EnumDeserializerStructContent::Fields(content) => {
+                    return visitor.visit_map(StructDeserializer {
+                        values: content,
+                        index: 0,
+                        mode,
+                    })
+                }
+            }
         }
         Err(Error::ExpectedStructVariant)
     }

@@ -74,10 +74,10 @@ impl serde::ser::Serializer for Serializer {
     fn serialize_unit_variant(
         self,
         _: &'static str,
-        index: u32,
+        _: u32,
         variant: &'static str,
     ) -> Result<Self::Ok> {
-        Ok(Intermediate::UnitVariant(variant.to_owned(), index))
+        Ok(Intermediate::UnitVariant(variant.to_owned()))
     }
 
     fn serialize_newtype_struct<T>(self, _: &'static str, value: &T) -> Result<Self::Ok>
@@ -92,7 +92,7 @@ impl serde::ser::Serializer for Serializer {
     fn serialize_newtype_variant<T>(
         self,
         _: &'static str,
-        index: u32,
+        _: u32,
         variant: &'static str,
         value: &T,
     ) -> Result<Self::Ok>
@@ -101,7 +101,6 @@ impl serde::ser::Serializer for Serializer {
     {
         Ok(Intermediate::NewTypeVariant(
             variant.to_owned(),
-            index,
             Box::new(value.serialize(self)?),
         ))
     }
@@ -134,13 +133,12 @@ impl serde::ser::Serializer for Serializer {
     fn serialize_tuple_variant(
         self,
         _: &'static str,
-        index: u32,
+        _: u32,
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
         Ok(TupleVariantSerializer {
             variant: variant.to_owned(),
-            index,
             values: Vec::with_capacity(len),
         })
     }
@@ -163,13 +161,12 @@ impl serde::ser::Serializer for Serializer {
     fn serialize_struct_variant(
         self,
         _: &'static str,
-        index: u32,
+        _: u32,
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
         Ok(StructVariantSerializer {
             variant: variant.to_owned(),
-            index,
             values: Vec::with_capacity(len),
         })
     }
@@ -240,7 +237,6 @@ impl serde::ser::SerializeTupleStruct for TupleStructSerializer {
 
 pub struct TupleVariantSerializer {
     variant: String,
-    index: u32,
     values: Vec<Intermediate>,
 }
 
@@ -257,11 +253,7 @@ impl serde::ser::SerializeTupleVariant for TupleVariantSerializer {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        Ok(Intermediate::TupleVariant(
-            self.variant,
-            self.index,
-            self.values,
-        ))
+        Ok(Intermediate::TupleVariant(self.variant, self.values))
     }
 }
 
@@ -329,7 +321,6 @@ impl serde::ser::SerializeStruct for StructSerializer {
 
 pub struct StructVariantSerializer {
     variant: String,
-    index: u32,
     values: Vec<(String, Intermediate)>,
 }
 
@@ -347,10 +338,6 @@ impl serde::ser::SerializeStructVariant for StructVariantSerializer {
     }
 
     fn end(self) -> Result<Intermediate> {
-        Ok(Intermediate::StructVariant(
-            self.variant,
-            self.index,
-            self.values,
-        ))
+        Ok(Intermediate::StructVariant(self.variant, self.values))
     }
 }

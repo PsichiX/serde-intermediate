@@ -34,13 +34,13 @@ pub enum Intermediate {
     // `struct Foo;`
     UnitStruct,
     // `enum Foo { Bar }`
-    /// (variant name, variant index)
-    UnitVariant(String, u32),
+    /// (variant name)
+    UnitVariant(String),
     // `struct Foo(bool);`
     NewTypeStruct(Box<Self>),
     // `enum Foo { Bar(bool) }`
-    /// (variant name, variant index, value)
-    NewTypeVariant(String, u32, Box<Self>),
+    /// (variant name, value)
+    NewTypeVariant(String, Box<Self>),
     /// (values: [value])
     Seq(Vec<Self>),
     /// `(bool, char)`
@@ -50,16 +50,16 @@ pub enum Intermediate {
     /// (values: [value])
     TupleStruct(Vec<Self>),
     // `enum Foo { Bar(bool, char) }`
-    /// (variant name, variant index, values: [value])
-    TupleVariant(String, u32, Vec<Self>),
+    /// (variant name, values: [value])
+    TupleVariant(String, Vec<Self>),
     /// (values: [(key, value)])
     Map(Vec<(Self, Self)>),
     // `struct Foo { a: bool, b: char }`
     /// (values: [(name, value)])
     Struct(Vec<(String, Self)>),
     // `enum Foo { Bar { a: bool, b: char } }`
-    /// (variant name, variant index, values: [(name, value)])
-    StructVariant(String, u32, Vec<(String, Self)>),
+    /// (variant name, values: [(name, value)])
+    StructVariant(String, Vec<(String, Self)>),
 }
 
 impl Default for Intermediate {
@@ -75,22 +75,22 @@ impl Intermediate {
         Self::UnitStruct
     }
 
-    pub fn unit_variant<T>(name: T, index: u32) -> Self
+    pub fn unit_variant<T>(name: T) -> Self
     where
         T: ToString,
     {
-        Self::UnitVariant(name.to_string(), index)
+        Self::UnitVariant(name.to_string())
     }
 
     pub fn newtype_struct(value: Self) -> Self {
         Self::NewTypeStruct(Box::new(value))
     }
 
-    pub fn newtype_variant<T>(name: T, index: u32, value: Self) -> Self
+    pub fn newtype_variant<T>(name: T, value: Self) -> Self
     where
         T: ToString,
     {
-        Self::NewTypeVariant(name.to_string(), index, Box::new(value))
+        Self::NewTypeVariant(name.to_string(), Box::new(value))
     }
 
     pub fn seq() -> Self {
@@ -105,11 +105,11 @@ impl Intermediate {
         Self::TupleStruct(vec![])
     }
 
-    pub fn tuple_variant<T>(name: T, index: u32) -> Self
+    pub fn tuple_variant<T>(name: T) -> Self
     where
         T: ToString,
     {
-        Self::TupleVariant(name.to_string(), index, vec![])
+        Self::TupleVariant(name.to_string(), vec![])
     }
 
     pub fn map() -> Self {
@@ -120,11 +120,11 @@ impl Intermediate {
         Self::Struct(vec![])
     }
 
-    pub fn struct_variant<T>(name: T, index: u32) -> Self
+    pub fn struct_variant<T>(name: T) -> Self
     where
         T: ToString,
     {
-        Self::StructVariant(name.to_string(), index, vec![])
+        Self::StructVariant(name.to_string(), vec![])
     }
 
     pub fn item<T>(mut self, value: T) -> Self
@@ -132,7 +132,7 @@ impl Intermediate {
         T: Into<Self>,
     {
         match &mut self {
-            Self::Seq(v) | Self::Tuple(v) | Self::TupleStruct(v) | Self::TupleVariant(_, _, v) => {
+            Self::Seq(v) | Self::Tuple(v) | Self::TupleStruct(v) | Self::TupleVariant(_, v) => {
                 v.push(value.into())
             }
             _ => {}
@@ -157,9 +157,7 @@ impl Intermediate {
         T: Into<Self>,
     {
         match &mut self {
-            Self::Struct(v) | Self::StructVariant(_, _, v) => {
-                v.push((key.to_string(), value.into()))
-            }
+            Self::Struct(v) | Self::StructVariant(_, v) => v.push((key.to_string(), value.into())),
             _ => {}
         }
         self
@@ -175,13 +173,13 @@ impl Intermediate {
                 Self::String(v) => string_bytesize(v),
                 Self::Bytes(v) => v.len() * std::mem::size_of::<u8>(),
                 Self::Option(v) => v.as_ref().map(|v| v.total_bytesize()).unwrap_or_default(),
-                Self::UnitVariant(n, _) => string_bytesize(n),
+                Self::UnitVariant(n) => string_bytesize(n),
                 Self::NewTypeStruct(v) => v.total_bytesize(),
-                Self::NewTypeVariant(n, _, v) => string_bytesize(n) + v.total_bytesize(),
+                Self::NewTypeVariant(n, v) => string_bytesize(n) + v.total_bytesize(),
                 Self::Seq(v) | Self::Tuple(v) | Self::TupleStruct(v) => {
                     v.iter().map(|v| v.total_bytesize()).sum()
                 }
-                Self::TupleVariant(n, _, v) => {
+                Self::TupleVariant(n, v) => {
                     string_bytesize(n) + v.iter().map(|v| v.total_bytesize()).sum::<usize>()
                 }
                 Self::Map(v) => v
@@ -192,7 +190,7 @@ impl Intermediate {
                     .iter()
                     .map(|(k, v)| string_bytesize(k) + v.total_bytesize())
                     .sum(),
-                Self::StructVariant(n, _, v) => {
+                Self::StructVariant(n, v) => {
                     string_bytesize(n)
                         + v.iter()
                             .map(|(k, v)| string_bytesize(k) + v.total_bytesize())
@@ -263,9 +261,9 @@ impl Intermediate {
         }
     }
 
-    pub fn as_unit_variant(&self) -> Option<(&str, u32)> {
+    pub fn as_unit_variant(&self) -> Option<&str> {
         match self {
-            Self::UnitVariant(n, i) => Some((n, *i)),
+            Self::UnitVariant(n) => Some(n),
             _ => None,
         }
     }
@@ -277,24 +275,24 @@ impl Intermediate {
         }
     }
 
-    pub fn as_new_type_variant(&self) -> Option<(&str, u32, &Self)> {
+    pub fn as_new_type_variant(&self) -> Option<(&str, &Self)> {
         match self {
-            Self::NewTypeVariant(n, i, v) => Some((n, *i, v)),
+            Self::NewTypeVariant(n, v) => Some((n, v)),
             _ => None,
         }
     }
 
-    pub fn as_tuple_variant(&self) -> Option<(&str, u32, &[Self])> {
+    pub fn as_tuple_variant(&self) -> Option<(&str, &[Self])> {
         match self {
-            Self::TupleVariant(n, i, v) => Some((n, *i, v)),
+            Self::TupleVariant(n, v) => Some((n, v)),
             _ => None,
         }
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn as_struct_variant(&self) -> Option<(&str, u32, &[(String, Self)])> {
+    pub fn as_struct_variant(&self) -> Option<(&str, &[(String, Self)])> {
         match self {
-            Self::StructVariant(n, i, v) => Some((n, *i, v)),
+            Self::StructVariant(n, v) => Some((n, v)),
             _ => None,
         }
     }
@@ -360,8 +358,8 @@ impl From<Option<Intermediate>> for Intermediate {
 impl From<Result<Intermediate, Intermediate>> for Intermediate {
     fn from(v: Result<Self, Self>) -> Self {
         match v {
-            Ok(v) => Self::NewTypeVariant("Ok".to_owned(), 0, Box::new(v)),
-            Err(v) => Self::NewTypeVariant("Err".to_owned(), 1, Box::new(v)),
+            Ok(v) => Self::NewTypeVariant("Ok".to_owned(), Box::new(v)),
+            Err(v) => Self::NewTypeVariant("Err".to_owned(), Box::new(v)),
         }
     }
 }
@@ -467,15 +465,13 @@ impl Serialize for Intermediate {
                 None => serializer.serialize_none(),
             },
             Self::UnitStruct => serializer.serialize_unit_struct("Intermediate"),
-            Self::UnitVariant(n, i) => {
-                serializer.serialize_unit_variant("Intermediate", *i, unsafe {
-                    std::mem::transmute(n.as_str())
-                })
-            }
+            Self::UnitVariant(n) => serializer.serialize_unit_variant("Intermediate", 0, unsafe {
+                std::mem::transmute(n.as_str())
+            }),
             Self::NewTypeStruct(v) => serializer.serialize_newtype_struct("Intermediate", v),
-            Self::NewTypeVariant(n, i, v) => serializer.serialize_newtype_variant(
+            Self::NewTypeVariant(n, v) => serializer.serialize_newtype_variant(
                 "Intermediate",
-                *i,
+                0,
                 unsafe { std::mem::transmute(n.as_str()) },
                 v,
             ),
@@ -500,10 +496,10 @@ impl Serialize for Intermediate {
                 }
                 tup.end()
             }
-            Self::TupleVariant(n, i, v) => {
+            Self::TupleVariant(n, v) => {
                 let mut tv = serializer.serialize_tuple_variant(
                     "Intermediate",
-                    *i,
+                    0,
                     unsafe { std::mem::transmute(n.as_str()) },
                     v.len(),
                 )?;
@@ -526,10 +522,10 @@ impl Serialize for Intermediate {
                 }
                 st.end()
             }
-            Self::StructVariant(n, i, v) => {
+            Self::StructVariant(n, v) => {
                 let mut sv = serializer.serialize_struct_variant(
                     "Intermediate",
-                    *i,
+                    0,
                     unsafe { std::mem::transmute(n.as_str()) },
                     v.len(),
                 )?;

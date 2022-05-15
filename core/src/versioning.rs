@@ -170,10 +170,10 @@ impl Change {
                     Self::PartialChange(Box::new(Self::difference(prev, next, options)))
                 }
                 (
-                    Intermediate::NewTypeVariant(prev_name, prev_index, prev_value),
-                    Intermediate::NewTypeVariant(next_name, next_index, next_value),
+                    Intermediate::NewTypeVariant(prev_name, prev_value),
+                    Intermediate::NewTypeVariant(next_name, next_value),
                 ) => {
-                    if prev_name != next_name || prev_index != next_index {
+                    if prev_name != next_name {
                         Self::Changed(next.to_owned())
                     } else {
                         Self::PartialChange(Box::new(Self::difference(
@@ -213,10 +213,7 @@ impl Change {
                     Self::PartialMap(result)
                 }
                 (Intermediate::Struct(prev), Intermediate::Struct(next))
-                | (
-                    Intermediate::StructVariant(_, _, prev),
-                    Intermediate::StructVariant(_, _, next),
-                ) => {
+                | (Intermediate::StructVariant(_, prev), Intermediate::StructVariant(_, next)) => {
                     let mut result = vec![];
                     for (nk, nv) in next {
                         if !prev.iter().any(|(pk, _)| pk == nk) {
@@ -388,8 +385,8 @@ impl Change {
                         Some(v) => Intermediate::NewTypeStruct(Box::new(v)),
                         _ => return Err(Error::NotPartial(value.to_owned())),
                     },
-                    Intermediate::NewTypeVariant(n, i, v) => match change.patch(v)? {
-                        Some(v) => Intermediate::NewTypeVariant(n.to_owned(), *i, Box::new(v)),
+                    Intermediate::NewTypeVariant(n, v) => match change.patch(v)? {
+                        Some(v) => Intermediate::NewTypeVariant(n.to_owned(), Box::new(v)),
                         _ => return Err(Error::NotPartial(value.to_owned())),
                     },
                     _ => return Err(Error::NotPartial(value.to_owned())),
@@ -514,9 +511,8 @@ impl Change {
                     Intermediate::Struct(v) => {
                         Ok(Some(Intermediate::Struct(implement(v, changes)?)))
                     }
-                    Intermediate::StructVariant(n, i, v) => Ok(Some(Intermediate::StructVariant(
+                    Intermediate::StructVariant(n, v) => Ok(Some(Intermediate::StructVariant(
                         n.to_owned(),
-                        *i,
                         implement(v, changes)?,
                     ))),
                     _ => Err(Error::NotMap(value.to_owned())),

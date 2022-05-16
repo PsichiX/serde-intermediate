@@ -356,8 +356,8 @@ impl std::fmt::Display for Intermediate {
     }
 }
 
-macro_rules! impl_as_copy_value {
-    ($method:ident, $type:ty, $variant:ident) => {
+macro_rules! impl_as {
+    (@copy $method:ident : $type:ty => $variant:ident) => {
         pub fn $method(&self) -> Option<$type> {
             match self {
                 Self::$variant(v) => Some(*v),
@@ -365,10 +365,7 @@ macro_rules! impl_as_copy_value {
             }
         }
     };
-}
-
-macro_rules! impl_as_ref_value {
-    ($method:ident, $type:ty, $variant:ident) => {
+    (@ref $method:ident : $type:ty => $variant:ident) => {
         pub fn $method(&self) -> Option<$type> {
             match self {
                 Self::$variant(v) => Some(v),
@@ -379,27 +376,34 @@ macro_rules! impl_as_ref_value {
 }
 
 impl Intermediate {
-    impl_as_copy_value! {as_bool, bool, Bool}
-    impl_as_copy_value! {as_i8, i8, I8}
-    impl_as_copy_value! {as_i16, i16, I16}
-    impl_as_copy_value! {as_i32, i32, I32}
-    impl_as_copy_value! {as_i64, i64, I64}
-    impl_as_copy_value! {as_i128, i128, I128}
-    impl_as_copy_value! {as_u8, u8, U8}
-    impl_as_copy_value! {as_u16, u16, U16}
-    impl_as_copy_value! {as_u32, u32, U32}
-    impl_as_copy_value! {as_u64, u64, U64}
-    impl_as_copy_value! {as_u128, u128, U128}
-    impl_as_copy_value! {as_f32, f32, F32}
-    impl_as_copy_value! {as_f64, f64, F64}
-    impl_as_copy_value! {as_char, char, Char}
-    impl_as_ref_value! {as_str, &str, String}
-    impl_as_ref_value! {as_bytes, &[u8], Bytes}
-    impl_as_ref_value! {as_seq, &[Self], Seq}
-    impl_as_ref_value! {as_tuple, &[Self], Tuple}
-    impl_as_ref_value! {as_tuple_struct, &[Self], TupleStruct}
-    impl_as_ref_value! {as_map, &[(Self, Self)], Map}
-    impl_as_ref_value! {as_struct, &[(String, Self)], Struct}
+    pub fn as_unit(&self) -> Option<()> {
+        match self {
+            Self::Unit => Some(()),
+            _ => None,
+        }
+    }
+
+    impl_as! {@copy as_bool : bool => Bool}
+    impl_as! {@copy as_i8 : i8 => I8}
+    impl_as! {@copy as_i16 : i16 => I16}
+    impl_as! {@copy as_i32 : i32 => I32}
+    impl_as! {@copy as_i64 : i64 => I64}
+    impl_as! {@copy as_i128 : i128 => I128}
+    impl_as! {@copy as_u8 : u8 => U8}
+    impl_as! {@copy as_u16 : u16 => U16}
+    impl_as! {@copy as_u32 : u32 => U32}
+    impl_as! {@copy as_u64 : u64 => U64}
+    impl_as! {@copy as_u128 : u128 => U128}
+    impl_as! {@copy as_f32 : f32 => F32}
+    impl_as! {@copy as_f64 : f64 => F64}
+    impl_as! {@copy as_char : char => Char}
+    impl_as! {@ref as_str : &str => String}
+    impl_as! {@ref as_bytes : &[u8] => Bytes}
+    impl_as! {@ref as_seq : &[Self] => Seq}
+    impl_as! {@ref as_tuple : &[Self] => Tuple}
+    impl_as! {@ref as_tuple_struct : &[Self] => TupleStruct}
+    impl_as! {@ref as_map : &[(Self, Self)] => Map}
+    impl_as! {@ref as_struct : &[(String, Self)] => Struct}
 
     pub fn as_option(&self) -> Option<&Self> {
         match self {

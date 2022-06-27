@@ -301,12 +301,10 @@ fn traverse_type(ty: &Type, filters: &[Ident], result: &mut Vec<proc_macro2::Tok
                     result.push(quote! {
                         #ty::schema(package);
                     });
-                } else {
-                    if let PathArguments::AngleBracketed(generics) = &segment.arguments {
-                        for arg in &generics.args {
-                            if let GenericArgument::Type(ty) = arg {
-                                traverse_type(ty, filters, result);
-                            }
+                } else if let PathArguments::AngleBracketed(generics) = &segment.arguments {
+                    for arg in &generics.args {
+                        if let GenericArgument::Type(ty) = arg {
+                            traverse_type(ty, filters, result);
                         }
                     }
                 }

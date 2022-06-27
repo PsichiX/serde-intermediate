@@ -11,7 +11,7 @@ pub fn from_str<T>(value: &str) -> Result<T>
 where
     T: DeserializeOwned,
 {
-    from_str_as(&value, Default::default())
+    from_str_as(value, Default::default())
 }
 
 pub fn from_str_as<T>(value: &str, mode: DeserializeMode) -> Result<T>
@@ -30,7 +30,7 @@ pub fn intermediate_from_str(content: &str) -> Result<Intermediate> {
     let ast = TextParser::parse(Rule::main, content)
         .map_err(|error| Error::Message(format!("{}", error)))?
         .next()
-        .ok_or_else(|| Error::NoNextTokens)?;
+        .ok_or(Error::NoNextTokens)?;
     parse(ast)
 }
 
@@ -44,7 +44,7 @@ macro_rules! impl_parse {
     }};
 }
 
-fn parse<'de>(ast: Pair<'de, Rule>) -> Result<Intermediate> {
+fn parse(ast: Pair<Rule>) -> Result<Intermediate> {
     match ast.as_rule() {
         Rule::unit => Ok(Intermediate::Unit),
         Rule::bool => match ast.as_str() {
@@ -90,24 +90,15 @@ fn parse<'de>(ast: Pair<'de, Rule>) -> Result<Intermediate> {
             Ok(Intermediate::NewTypeStruct(Box::new(value)))
         }
         Rule::seq => {
-            let list = ast
-                .into_inner()
-                .map(|ast| parse(ast))
-                .collect::<Result<Vec<_>>>()?;
+            let list = ast.into_inner().map(parse).collect::<Result<Vec<_>>>()?;
             Ok(Intermediate::Seq(list))
         }
         Rule::tuple => {
-            let list = ast
-                .into_inner()
-                .map(|ast| parse(ast))
-                .collect::<Result<Vec<_>>>()?;
+            let list = ast.into_inner().map(parse).collect::<Result<Vec<_>>>()?;
             Ok(Intermediate::Tuple(list))
         }
         Rule::tuple_struct => {
-            let list = ast
-                .into_inner()
-                .map(|ast| parse(ast))
-                .collect::<Result<Vec<_>>>()?;
+            let list = ast.into_inner().map(parse).collect::<Result<Vec<_>>>()?;
             Ok(Intermediate::TupleStruct(list))
         }
         Rule::map => {
@@ -147,7 +138,7 @@ fn parse<'de>(ast: Pair<'de, Rule>) -> Result<Intermediate> {
                 Rule::tuple => {
                     let list = content
                         .into_inner()
-                        .map(|ast| parse(ast))
+                        .map(parse)
                         .collect::<Result<Vec<_>>>()?;
                     Ok(Intermediate::TupleVariant(name, list))
                 }

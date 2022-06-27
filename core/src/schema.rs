@@ -53,28 +53,28 @@ impl std::fmt::Display for SchemaIdTree {
         match self {
             Self::Tuple(list) => {
                 write!(f, "(")?;
-                for i in 0..list.len() {
+                for (i, item) in list.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    list[i].fmt(f)?;
+                    item.fmt(f)?;
                 }
                 write!(f, ")")?;
             }
             Self::Path { path, args } => {
-                for i in 0..path.len() {
+                for (i, segment) in path.iter().enumerate() {
                     if i > 0 {
                         write!(f, "::")?;
                     }
-                    path[i].fmt(f)?;
+                    segment.fmt(f)?;
                 }
                 if !args.is_empty() {
                     write!(f, "<")?;
-                    for i in 0..args.len() {
+                    for (i, arg) in args.iter().enumerate() {
                         if i > 0 {
                             write!(f, ", ")?;
                         }
-                        args[i].fmt(f)?;
+                        arg.fmt(f)?;
                     }
                     write!(f, ">")?;
                 }
@@ -112,7 +112,7 @@ impl SchemaId {
         Some(Self::parse_tree(pairs))
     }
 
-    fn parse_tree<'a>(mut pairs: Pairs<'a, Rule>) -> SchemaIdTree {
+    fn parse_tree(mut pairs: Pairs<Rule>) -> SchemaIdTree {
         let pair = pairs.next().unwrap();
         match pair.as_rule() {
             Rule::tuple_element => SchemaIdTree::Tuple(Self::parse_list(pair.into_inner())),
@@ -129,11 +129,11 @@ impl SchemaId {
         }
     }
 
-    fn parse_path<'a>(pairs: Pairs<'a, Rule>) -> Vec<String> {
+    fn parse_path(pairs: Pairs<Rule>) -> Vec<String> {
         pairs.map(|pair| pair.as_str().to_owned()).collect()
     }
 
-    fn parse_list<'a>(pairs: Pairs<'a, Rule>) -> Vec<SchemaIdTree> {
+    fn parse_list(pairs: Pairs<Rule>) -> Vec<SchemaIdTree> {
         pairs
             .map(|pair| Self::parse_tree(pair.into_inner()))
             .collect()

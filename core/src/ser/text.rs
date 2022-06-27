@@ -132,6 +132,7 @@ where
     }
 
     fn write_new_line_indent(&mut self) -> Result<()> {
+        #[allow(clippy::collapsible_match)]
         if let TextConfig::Pretty { level, indent, .. } = &mut self.config {
             if let Some(indent) = *indent {
                 Self::map_result(write!(

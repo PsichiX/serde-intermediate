@@ -508,6 +508,7 @@ macro_rules! impl_visit {
     };
 }
 
+#[derive(Copy, Clone)]
 pub struct IntermediateVisitor;
 
 impl<'de> Visitor<'de> for IntermediateVisitor {
@@ -634,5 +635,6 @@ impl<'de> Visitor<'de> for IntermediateVisitor {
     // where
     //     A: EnumAccess<'de>,
     // {
+    //     Err(serde::de::Error::invalid_type(Unexpected::Enum, &self))
     // }
 }

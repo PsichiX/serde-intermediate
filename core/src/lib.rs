@@ -114,15 +114,23 @@ mod tests;
 pub mod de;
 pub mod error;
 pub mod reflect;
+pub mod schema;
 pub mod ser;
 pub mod value;
 pub mod versioning;
 
 pub use crate::{
-    de::intermediate::deserialize, de::intermediate::deserialize as from_intermediate,
-    de::intermediate::deserialize_as as from_intermediate_as, error::Error,
-    reflect::ReflectIntermediate, ser::intermediate::serialize,
-    ser::intermediate::serialize as to_intermediate, value::intermediate::Intermediate,
+    de::intermediate::{
+        deserialize, deserialize as from_intermediate, deserialize_as as from_intermediate_as,
+    },
+    de::text::{from_str, intermediate_from_str},
+    error::Error,
+    reflect::ReflectIntermediate,
+    schema::{SchemaIdContainer, SchemaIntermediate, SchemaPackage},
+    ser::intermediate::serialize,
+    ser::intermediate::serialize as to_intermediate,
+    ser::text::{to_string, to_string_compact, to_string_pretty, TextConfig},
+    value::intermediate::Intermediate,
     versioning::*,
 };
 

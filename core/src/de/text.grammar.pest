@@ -1,0 +1,58 @@
+main = _{ SOI ~ value ~ EOI }
+value = _{ some | none | variant | structure | tuple_struct | newtype_struct | unit_struct | map | seq | tuple | unit | string | char | bytes | f64 | f32 | i128 | i64 | i32 | i16 | i8 | u128 | u64 | u32 | u16 | u8 | bool }
+unit = { "!" }
+bool = { "true" | "false" }
+i8 = { signed_integer ~ postfix_i8 }
+postfix_i8 = _{ "_i8" }
+i16 = { signed_integer ~ postfix_i16 }
+postfix_i16 = _{ "_i16" }
+i32 = { signed_integer ~ postfix_i32 }
+postfix_i32 = _{ "_i32" }
+i64 = { signed_integer ~ postfix_i64 }
+postfix_i64 = _{ "_i64" }
+i128 = { signed_integer ~ postfix_i128 }
+postfix_i128 = _{ "_i128" }
+u8 = { signed_integer ~ postfix_u8 }
+postfix_u8 = _{ "_u8" }
+u16 = { signed_integer ~ postfix_u16 }
+postfix_u16 = _{ "_u16" }
+u32 = { signed_integer ~ postfix_u32 }
+postfix_u32 = _{ "_u32" }
+u64 = { signed_integer ~ postfix_u64 }
+postfix_u64 = _{ "_u64" }
+u128 = { signed_integer ~ postfix_u128 }
+postfix_u128 = _{ "_u128" }
+f32 = { real ~ "_f32" }
+postfix_f32 = _{ "_f32" }
+f64 = { real ~ "_f64" }
+postfix_f64 = _{ "_f64" }
+char = { "'" ~ char_inner ~ "'" }
+char_inner = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+string = ${ "\"" ~ string_inner ~ "\"" }
+string_inner = @{ char_inner* }
+bytes = ${ bytes_prefix ~ bytes_inner }
+bytes_inner = @{ byte* }
+bytes_prefix = _{ "0x" }
+byte = @{ ASCII_HEX_DIGIT ~ ASCII_HEX_DIGIT }
+some = { "?" ~ "=" ~ value }
+none = { "?" ~ !"=" }
+unit_struct = { "#" ~ "!" }
+newtype_struct = { "$" ~ "=" ~ value }
+seq = { "[" ~ (value ~ ("," ~ value)*)? ~ "]" }
+tuple = { "(" ~ value ~ ("," ~ value)* ~ ")" }
+tuple_struct = { "#" ~ "(" ~ value ~ ("," ~ value)* ~ ")" }
+map = { "{" ~ (map_entry ~ ("," ~ map_entry)*)? ~ "}" }
+map_entry = { value ~ ":" ~ value }
+structure = { "#" ~ "{" ~ (structure_field ~ ("," ~ structure_field)*)? ~ "}" }
+structure_field = { identifier ~ ":" ~ value }
+variant = { "@" ~ identifier ~ (structure | tuple | newtype_struct | unit) }
+unsigned_integer = @{ ASCII_DIGIT+ }
+signed_integer = @{ negation? ~ unsigned_integer }
+real = @{ signed_integer ~ "." ~ unsigned_integer }
+negation = { "-" }
+identifier = @{ "_"* ~ XID_START ~ XID_CONTINUE* }
+WHITESPACE = _{ " " | "\t" | NEWLINE }

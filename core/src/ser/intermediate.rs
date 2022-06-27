@@ -1,6 +1,15 @@
 use crate::{error::*, value::intermediate::*};
 use serde::Serialize;
 
+pub fn serialize<T>(value: &T) -> Result<Intermediate>
+where
+    T: Serialize + ?Sized,
+{
+    value.serialize(Serializer)
+}
+
+pub struct Serializer;
+
 macro_rules! impl_serialize {
     ($name:ident, $variant:ident, $type:ident) => {
         fn $name(self, v: $type) -> Result<Self::Ok> {
@@ -8,15 +17,6 @@ macro_rules! impl_serialize {
         }
     };
 }
-
-pub fn serialize<T>(value: &T) -> Result<Intermediate>
-where
-    T: Serialize,
-{
-    value.serialize(Serializer)
-}
-
-pub struct Serializer;
 
 impl serde::ser::Serializer for Serializer {
     type Ok = Intermediate;

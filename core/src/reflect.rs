@@ -87,45 +87,45 @@ macro_rules! impl_reflect {
 impl ReflectIntermediate for () {}
 impl<T> ReflectIntermediate for PhantomData<T> {}
 
-impl_reflect! { @atom bool => Bool }
-impl_reflect! { @atom i8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @atom i16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @atom i32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @atom i64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @atom i128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @atom isize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @atom u8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @atom u16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @atom u32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @atom u64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @atom u128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @atom usize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @atom f32 => I8, I16, U8, U16, F32 }
-impl_reflect! { @atom f64 => I8, I16, I32, U8, U16, U32, F32, F64 }
-impl_reflect! { @atom char => U8, U32, Char }
-impl_reflect! { @cast AtomicBool => bool => Bool }
-impl_reflect! { @cast AtomicI8 => i8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast AtomicI16 => i16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast AtomicI32 => i32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast AtomicI64 => i64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast AtomicIsize => isize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast AtomicU8 => u8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @cast AtomicU16 => u16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast AtomicU32 => u32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @cast AtomicU64 => u64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @cast AtomicUsize => usize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast NonZeroI8 => i8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast NonZeroI16 => i16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast NonZeroI32 => i32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast NonZeroI64 => i64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast NonZeroI128 => i128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast NonZeroIsize => isize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast NonZeroU8 => u8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @cast NonZeroU16 => u16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
-impl_reflect! { @cast NonZeroU32 => u32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @cast NonZeroU64 => u64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @cast NonZeroU128 => u128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char }
-impl_reflect! { @cast NonZeroUsize => usize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128 }
+impl_reflect!(@atom bool => Bool);
+impl_reflect!(@atom i8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@atom i16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@atom i32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@atom i64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@atom i128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@atom isize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@atom u8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@atom u16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@atom u32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@atom u64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@atom u128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@atom usize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@atom f32 => I8, I16, U8, U16, F32);
+impl_reflect!(@atom f64 => I8, I16, I32, U8, U16, U32, F32, F64);
+impl_reflect!(@atom char => U8, U32, Char);
+impl_reflect!(@cast AtomicBool => bool => Bool);
+impl_reflect!(@cast AtomicI8 => i8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast AtomicI16 => i16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast AtomicI32 => i32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast AtomicI64 => i64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast AtomicIsize => isize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast AtomicU8 => u8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@cast AtomicU16 => u16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast AtomicU32 => u32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@cast AtomicU64 => u64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@cast AtomicUsize => usize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast NonZeroI8 => i8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast NonZeroI16 => i16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast NonZeroI32 => i32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast NonZeroI64 => i64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast NonZeroI128 => i128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast NonZeroIsize => isize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast NonZeroU8 => u8 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@cast NonZeroU16 => u16 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
+impl_reflect!(@cast NonZeroU32 => u32 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@cast NonZeroU64 => u64 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@cast NonZeroU128 => u128 => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, Char);
+impl_reflect!(@cast NonZeroUsize => usize => Bool, I8, I16, I32, I64, I128, U8, U16, U32, U64, U128);
 
 impl ReflectIntermediate for String {
     fn patch_change(&mut self, change: &Change) {

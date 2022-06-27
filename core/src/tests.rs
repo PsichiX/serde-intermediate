@@ -2,7 +2,7 @@
 
 use crate::{
     versioning::{Change, DiffOptimizationHint, DiffOptions},
-    Intermediate, ReflectIntermediate,
+    Intermediate, ReflectIntermediate, SchemaIntermediate, TextConfig,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -38,24 +38,55 @@ macro_rules! set {
     }}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+fn try_until<F, T>(mut tries: usize, mut provide: F, expected: T)
+where
+    F: FnMut() -> T,
+    T: PartialEq + std::fmt::Debug,
+{
+    tries = tries.max(1);
+    let mut last = None;
+    for _ in 0..tries {
+        let provided = provide();
+        if &provided == &expected {
+            return;
+        } else {
+            last = Some(provided);
+        }
+    }
+    panic!(
+        "Could not provide {:#?} in {} tries! Last provided value: {:#?}",
+        expected, tries, last
+    );
+}
+
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
+)]
 struct UnitStruct;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
+)]
 struct NewTypeStruct(bool);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
+)]
 struct TupleStruct(bool, usize);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
+)]
 enum Enum {
     Unit,
-    NewType(UnitStruct),
+    NewType(#[schema_intermediate(package)] UnitStruct),
     Tuple(bool, usize),
     Struct { scalar: f32, text: String },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
+)]
 struct Struct {
     bool_value: bool,
     i8_value: i8,
@@ -74,13 +105,17 @@ struct Struct {
     string_value: String,
     tuple: (bool, usize),
     bytes: Vec<u8>,
+    #[schema_intermediate(package_traverse(UnitStruct))]
     option: Option<UnitStruct>,
     list: Vec<usize>,
     set: HashSet<usize>,
     string_map: HashMap<String, usize>,
     integer_map: HashMap<usize, usize>,
+    #[schema_intermediate(package)]
     enum_value: Enum,
+    #[schema_intermediate(package)]
     new_type_struct: NewTypeStruct,
+    #[schema_intermediate(package)]
     tuple_struct: TupleStruct,
 }
 
@@ -1400,5 +1435,633 @@ fn test_editor_communication() {
             range: 10.0,
             value: 10.0
         }
+    );
+}
+
+#[test]
+fn test_text_format() {
+    macro_rules! lines {
+        ($( $line:literal )+) => {
+            vec![ $( $line ),+ ].join("\n")
+        };
+    }
+
+    assert_eq!(crate::to_string_compact(&true).unwrap(), "true");
+
+    assert_eq!(crate::to_string_compact(&42).unwrap(), "42_i32");
+
+    assert_eq!(crate::to_string_compact(&'@').unwrap(), "'@'");
+
+    assert_eq!(
+        crate::to_string_compact("Hello World!").unwrap(),
+        r#""Hello World!""#
+    );
+
+    assert_eq!(
+        crate::to_string_compact(&Intermediate::Bytes(b"Hello World!".to_vec())).unwrap(),
+        "0x48656c6c6f20576f726c6421"
+    );
+
+    assert_eq!(crate::to_string_compact(&Option::<()>::None).unwrap(), "?");
+
+    assert_eq!(crate::to_string_compact(&Some(42)).unwrap(), "?=42_i32");
+    assert_eq!(crate::to_string_pretty(&Some(42)).unwrap(), "? = 42_i32");
+
+    assert_eq!(crate::to_string_compact(&()).unwrap(), "!");
+
+    assert_eq!(crate::to_string_compact(&UnitStruct).unwrap(), "#!");
+
+    assert_eq!(crate::to_string_compact(&Enum::Unit).unwrap(), "@Unit");
+
+    assert_eq!(
+        crate::to_string_compact(&NewTypeStruct(true)).unwrap(),
+        "$=true"
+    );
+    assert_eq!(
+        crate::to_string_pretty(&NewTypeStruct(true)).unwrap(),
+        "$ = true"
+    );
+
+    assert_eq!(
+        crate::to_string_compact(&Enum::NewType(UnitStruct)).unwrap(),
+        "@NewType$=#!"
+    );
+    assert_eq!(
+        crate::to_string_pretty(&Enum::NewType(UnitStruct)).unwrap(),
+        "@NewType $ = #!"
+    );
+
+    assert_eq!(
+        crate::to_string_compact(&vec![0, 1, 2]).unwrap(),
+        "[0_i32,1_i32,2_i32]"
+    );
+    assert_eq!(
+        crate::to_string_pretty(&vec![0, 1, 2]).unwrap(),
+        lines! {
+            "["
+            "  0_i32,"
+            "  1_i32,"
+            "  2_i32"
+            "]"
+        }
+    );
+    assert_eq!(
+        crate::to_string(&vec![0, 1, 2], TextConfig::pretty(None)).unwrap(),
+        "[0_i32, 1_i32, 2_i32]"
+    );
+
+    assert_eq!(
+        crate::to_string_compact(&(0, 1, 2)).unwrap(),
+        "(0_i32,1_i32,2_i32)"
+    );
+    assert_eq!(
+        crate::to_string_pretty(&(0, 1, 2)).unwrap(),
+        lines! {
+            "("
+            "  0_i32,"
+            "  1_i32,"
+            "  2_i32"
+            ")"
+        }
+    );
+    assert_eq!(
+        crate::to_string(&(0, 1, 2), TextConfig::pretty(None)).unwrap(),
+        "(0_i32, 1_i32, 2_i32)"
+    );
+
+    assert_eq!(
+        crate::to_string_compact(&TupleStruct(true, 42)).unwrap(),
+        "#(true,42_u64)"
+    );
+    assert_eq!(
+        crate::to_string_pretty(&TupleStruct(true, 42)).unwrap(),
+        lines! {
+            "# ("
+            "  true,"
+            "  42_u64"
+            ")"
+        }
+    );
+    assert_eq!(
+        crate::to_string(&TupleStruct(true, 42), TextConfig::pretty(None)).unwrap(),
+        "# (true, 42_u64)"
+    );
+
+    assert_eq!(
+        crate::to_string_compact(&Enum::Tuple(true, 42)).unwrap(),
+        "@Tuple(true,42_u64)"
+    );
+    assert_eq!(
+        crate::to_string_pretty(&Enum::Tuple(true, 42)).unwrap(),
+        lines! {
+            "@Tuple ("
+            "  true,"
+            "  42_u64"
+            ")"
+        }
+    );
+    assert_eq!(
+        crate::to_string(&Enum::Tuple(true, 42), TextConfig::pretty(None)).unwrap(),
+        "@Tuple (true, 42_u64)"
+    );
+
+    try_until(
+        100,
+        || {
+            crate::to_string_compact(
+                &map! {"a".to_owned() => 0, "b".to_owned() => 1, "c".to_owned() => 2},
+            )
+            .unwrap()
+        },
+        r#"{"a":0_i32,"b":1_i32,"c":2_i32}"#.to_owned(),
+    );
+    try_until(
+        100,
+        || {
+            crate::to_string_pretty(
+                &map! {"a".to_owned() => 0, "b".to_owned() => 1, "c".to_owned() => 2},
+            )
+            .unwrap()
+        },
+        lines! {
+            r#"{"#
+            r#"  "a": 0_i32,"#
+            r#"  "b": 1_i32,"#
+            r#"  "c": 2_i32"#
+            r#"}"#
+        }
+        .to_owned(),
+    );
+    try_until(
+        100,
+        || {
+            crate::to_string(
+                &map! {"a".to_owned() => 0, "b".to_owned() => 1, "c".to_owned() => 2},
+                TextConfig::pretty(None),
+            )
+            .unwrap()
+        },
+        r#"{"a": 0_i32, "b": 1_i32, "c": 2_i32}"#.to_owned(),
+    );
+
+    try_until(200, || {
+        crate::to_string_compact(&Struct {
+            bool_value: true,
+            i8_value: -1,
+            i16_value: 2,
+            i32_value: -3,
+            i64_value: 4,
+            i128_value: -5,
+            u8_value: 6,
+            u16_value: 7,
+            u32_value: 8,
+            u64_value: 9,
+            u128_value: 10,
+            f32_value: 1.1,
+            f64_value: 1.2,
+            char_value: '@',
+            string_value: "hello".to_owned(),
+            tuple: (false, 13),
+            bytes: vec![14, 15, 16, 17, 18, 19],
+            option: Some(UnitStruct),
+            list: vec![20, 21, 23],
+            set: set![20, 21, 23],
+            string_map: map! {"a".to_owned() => 24,"b".to_owned() => 25},
+            integer_map: map! {27 => 28,29 =>30},
+            enum_value: Enum::Struct {
+                scalar: 3.1,
+                text: "world".to_owned(),
+            },
+            new_type_struct: NewTypeStruct(true),
+            tuple_struct: TupleStruct(false, 32),
+        }).unwrap()
+    }, r#"#{bool_value:true,i8_value:-1_i8,i16_value:2_i16,i32_value:-3_i32,i64_value:4_i64,i128_value:-5_i128,u8_value:6_u8,u16_value:7_u16,u32_value:8_u32,u64_value:9_u64,u128_value:10_u128,f32_value:1.1_f32,f64_value:1.2_f64,char_value:'@',string_value:"hello",tuple:(false,13_u64),bytes:[14_u8,15_u8,16_u8,17_u8,18_u8,19_u8],option:?=#!,list:[20_u64,21_u64,23_u64],set:[21_u64,23_u64,20_u64],string_map:{"b":25_u64,"a":24_u64},integer_map:{27_u64:28_u64,29_u64:30_u64},enum_value:@Struct#{scalar:3.1_f32,text:"world"},new_type_struct:$=true,tuple_struct:#(false,32_u64)}"#.to_owned());
+    try_until(
+        200,
+        || {
+            crate::to_string_pretty(&Struct {
+                bool_value: true,
+                i8_value: -1,
+                i16_value: 2,
+                i32_value: -3,
+                i64_value: 4,
+                i128_value: -5,
+                u8_value: 6,
+                u16_value: 7,
+                u32_value: 8,
+                u64_value: 9,
+                u128_value: 10,
+                f32_value: 1.1,
+                f64_value: 1.2,
+                char_value: '@',
+                string_value: "hello".to_owned(),
+                tuple: (false, 13),
+                bytes: vec![14, 15, 16, 17, 18, 19],
+                option: Some(UnitStruct),
+                list: vec![20, 21, 23],
+                set: set![20, 21, 23],
+                string_map: map! {"a".to_owned() => 24,"b".to_owned() => 25},
+                integer_map: map! {27 => 28,29 =>30},
+                enum_value: Enum::Struct {
+                    scalar: 3.1,
+                    text: "world".to_owned(),
+                },
+                new_type_struct: NewTypeStruct(true),
+                tuple_struct: TupleStruct(false, 32),
+            })
+            .unwrap()
+        },
+        lines! {
+            r#"# {"#
+            r#"  bool_value: true,"#
+            r#"  i8_value: -1_i8,"#
+            r#"  i16_value: 2_i16,"#
+            r#"  i32_value: -3_i32,"#
+            r#"  i64_value: 4_i64,"#
+            r#"  i128_value: -5_i128,"#
+            r#"  u8_value: 6_u8,"#
+            r#"  u16_value: 7_u16,"#
+            r#"  u32_value: 8_u32,"#
+            r#"  u64_value: 9_u64,"#
+            r#"  u128_value: 10_u128,"#
+            r#"  f32_value: 1.1_f32,"#
+            r#"  f64_value: 1.2_f64,"#
+            r#"  char_value: '@',"#
+            r#"  string_value: "hello","#
+            r#"  tuple: ("#
+            r#"    false,"#
+            r#"    13_u64"#
+            r#"  ),"#
+            r#"  bytes: ["#
+            r#"    14_u8,"#
+            r#"    15_u8,"#
+            r#"    16_u8,"#
+            r#"    17_u8,"#
+            r#"    18_u8,"#
+            r#"    19_u8"#
+            r#"  ],"#
+            r#"  option: ? = #!,"#
+            r#"  list: ["#
+            r#"    20_u64,"#
+            r#"    21_u64,"#
+            r#"    23_u64"#
+            r#"  ],"#
+            r#"  set: ["#
+            r#"    21_u64,"#
+            r#"    23_u64,"#
+            r#"    20_u64"#
+            r#"  ],"#
+            r#"  string_map: {"#
+            r#"    "b": 25_u64,"#
+            r#"    "a": 24_u64"#
+            r#"  },"#
+            r#"  integer_map: {"#
+            r#"    27_u64: 28_u64,"#
+            r#"    29_u64: 30_u64"#
+            r#"  },"#
+            r#"  enum_value: @Struct # {"#
+            r#"    scalar: 3.1_f32,"#
+            r#"    text: "world""#
+            r#"  },"#
+            r#"  new_type_struct: $ = true,"#
+            r#"  tuple_struct: # ("#
+            r#"    false,"#
+            r#"    32_u64"#
+            r#"  )"#
+            r#"}"#
+        },
+    );
+    try_until(200, || {
+        crate::to_string(&Struct {
+            bool_value: true,
+            i8_value: -1,
+            i16_value: 2,
+            i32_value: -3,
+            i64_value: 4,
+            i128_value: -5,
+            u8_value: 6,
+            u16_value: 7,
+            u32_value: 8,
+            u64_value: 9,
+            u128_value: 10,
+            f32_value: 1.1,
+            f64_value: 1.2,
+            char_value: '@',
+            string_value: "hello".to_owned(),
+            tuple: (false, 13),
+            bytes: vec![14, 15, 16, 17, 18, 19],
+            option: Some(UnitStruct),
+            list: vec![20, 21, 23],
+            set: set![20, 21, 23],
+            string_map: map! {"a".to_owned() => 24,"b".to_owned() => 25},
+            integer_map: map! {27 => 28,29 =>30},
+            enum_value: Enum::Struct {
+                scalar: 3.1,
+                text: "world".to_owned(),
+            },
+            new_type_struct: NewTypeStruct(true),
+            tuple_struct: TupleStruct(false, 32),
+        }, TextConfig::pretty(None)).unwrap()
+    }, r#"# {bool_value: true, i8_value: -1_i8, i16_value: 2_i16, i32_value: -3_i32, i64_value: 4_i64, i128_value: -5_i128, u8_value: 6_u8, u16_value: 7_u16, u32_value: 8_u32, u64_value: 9_u64, u128_value: 10_u128, f32_value: 1.1_f32, f64_value: 1.2_f64, char_value: '@', string_value: "hello", tuple: (false, 13_u64), bytes: [14_u8, 15_u8, 16_u8, 17_u8, 18_u8, 19_u8], option: ? = #!, list: [20_u64, 21_u64, 23_u64], set: [21_u64, 23_u64, 20_u64], string_map: {"b": 25_u64, "a": 24_u64}, integer_map: {27_u64: 28_u64, 29_u64: 30_u64}, enum_value: @Struct # {scalar: 3.1_f32, text: "world"}, new_type_struct: $ = true, tuple_struct: # (false, 32_u64)}"#.to_owned());
+
+    assert_eq!(
+        crate::to_string_compact(&Enum::Struct {
+            scalar: 4.2,
+            text: "Hello World!".to_owned()
+        })
+        .unwrap(),
+        r#"@Struct#{scalar:4.2_f32,text:"Hello World!"}"#
+    );
+    assert_eq!(
+        crate::to_string_pretty(&Enum::Struct {
+            scalar: 4.2,
+            text: "Hello World!".to_owned()
+        })
+        .unwrap(),
+        lines! {
+            r#"@Struct # {"#
+            r#"  scalar: 4.2_f32,"#
+            r#"  text: "Hello World!""#
+            r#"}"#
+        }
+    );
+    assert_eq!(
+        crate::to_string(
+            &Enum::Struct {
+                scalar: 4.2,
+                text: "Hello World!".to_owned()
+            },
+            TextConfig::pretty(None)
+        )
+        .unwrap(),
+        r#"@Struct # {scalar: 4.2_f32, text: "Hello World!"}"#
+    );
+
+    let content = lines! {
+        r#"# {"#
+        r#"  bool_value: true,"#
+        r#"  i8_value: -1_i8,"#
+        r#"  i16_value: 2_i16,"#
+        r#"  i32_value: -3_i32,"#
+        r#"  i64_value: 4_i64,"#
+        r#"  i128_value: -5_i128,"#
+        r#"  u8_value: 6_u8,"#
+        r#"  u16_value: 7_u16,"#
+        r#"  u32_value: 8_u32,"#
+        r#"  u64_value: 9_u64,"#
+        r#"  u128_value: 10_u128,"#
+        r#"  f32_value: 1.1_f32,"#
+        r#"  f64_value: 1.2_f64,"#
+        r#"  char_value: '@',"#
+        r#"  string_value: "hello","#
+        r#"  tuple: ("#
+        r#"    false,"#
+        r#"    13_u64"#
+        r#"  ),"#
+        r#"  bytes: ["#
+        r#"    14_u8,"#
+        r#"    15_u8,"#
+        r#"    16_u8,"#
+        r#"    17_u8,"#
+        r#"    18_u8,"#
+        r#"    19_u8"#
+        r#"  ],"#
+        r#"  option: ? = #!,"#
+        r#"  list: ["#
+        r#"    20_u64,"#
+        r#"    21_u64,"#
+        r#"    23_u64"#
+        r#"  ],"#
+        r#"  set: ["#
+        r#"    21_u64,"#
+        r#"    23_u64,"#
+        r#"    20_u64"#
+        r#"  ],"#
+        r#"  string_map: {"#
+        r#"    "b": 25_u64,"#
+        r#"    "a": 24_u64"#
+        r#"  },"#
+        r#"  integer_map: {"#
+        r#"    27_u64: 28_u64,"#
+        r#"    29_u64: 30_u64"#
+        r#"  },"#
+        r#"  enum_value: @Struct # {"#
+        r#"    scalar: 3.1_f32,"#
+        r#"    text: "world""#
+        r#"  },"#
+        r#"  new_type_struct: $ = true,"#
+        r#"  tuple_struct: # ("#
+        r#"    false,"#
+        r#"    32_u64"#
+        r#"  )"#
+        r#"}"#
+    };
+    let provided = crate::from_str::<Struct>(&content).unwrap();
+    let expected = Struct {
+        bool_value: true,
+        i8_value: -1,
+        i16_value: 2,
+        i32_value: -3,
+        i64_value: 4,
+        i128_value: -5,
+        u8_value: 6,
+        u16_value: 7,
+        u32_value: 8,
+        u64_value: 9,
+        u128_value: 10,
+        f32_value: 1.1,
+        f64_value: 1.2,
+        char_value: '@',
+        string_value: "hello".to_owned(),
+        tuple: (false, 13),
+        bytes: vec![14, 15, 16, 17, 18, 19],
+        option: Some(UnitStruct),
+        list: vec![20, 21, 23],
+        set: set![20, 21, 23],
+        string_map: map! {"a".to_owned() => 24,"b".to_owned() => 25},
+        integer_map: map! {27 => 28,29 =>30},
+        enum_value: Enum::Struct {
+            scalar: 3.1,
+            text: "world".to_owned(),
+        },
+        new_type_struct: NewTypeStruct(true),
+        tuple_struct: TupleStruct(false, 32),
+    };
+    assert_eq!(provided, expected);
+
+    let content = r#"@Struct #{ scalar: 3.1_f32, text: "world" }"#;
+    let provided = crate::intermediate_from_str(&content).unwrap();
+    let expected = crate::to_intermediate(&Enum::Struct {
+        scalar: 3.1,
+        text: "world".to_owned(),
+    })
+    .unwrap();
+    assert_eq!(provided, expected);
+}
+
+#[test]
+fn test_schema() {
+    use crate::schema::*;
+
+    let mut provided = SchemaPackage::default().prefer_tree_id(true);
+    UnitStruct::schema(&mut provided);
+    let mut expected = SchemaPackage::default().prefer_tree_id(true);
+    expected.with(
+        SchemaIdTree::new::<UnitStruct>(),
+        SchemaType::new_struct(SchemaTypeStruct::default()),
+    );
+    assert_eq!(provided, expected);
+
+    let mut provided = SchemaPackage::default().prefer_tree_id(true);
+    NewTypeStruct::schema(&mut provided);
+    let mut expected = SchemaPackage::default().prefer_tree_id(true);
+    expected.with(
+        SchemaIdTree::new::<NewTypeStruct>(),
+        SchemaType::new_tuple_struct(SchemaTypeTuple::default().item(SchemaIdTree::new::<bool>())),
+    );
+    assert_eq!(provided, expected);
+
+    let mut provided = SchemaPackage::default().prefer_tree_id(true);
+    TupleStruct::schema(&mut provided);
+    let mut expected = SchemaPackage::default().prefer_tree_id(true);
+    expected.with(
+        SchemaIdTree::new::<TupleStruct>(),
+        SchemaType::new_tuple_struct(
+            SchemaTypeTuple::default()
+                .item(SchemaIdTree::new::<bool>())
+                .item(SchemaIdTree::new::<usize>()),
+        ),
+    );
+    assert_eq!(provided, expected);
+
+    let mut expected = SchemaPackage::default().prefer_tree_id(true);
+    expected.with(
+        SchemaIdTree::new::<UnitStruct>(),
+        SchemaType::new_struct(SchemaTypeStruct::default()),
+    );
+    expected.with(
+        SchemaIdTree::new::<Enum>(),
+        SchemaType::new_enum(
+            SchemaTypeEnum::default()
+                .variant("Unit", SchemaTypeEnumVariant::Empty)
+                .variant(
+                    "NewType",
+                    SchemaTypeEnumVariant::new_tuple(
+                        SchemaTypeTuple::default().item(SchemaIdTree::new::<UnitStruct>()),
+                    ),
+                )
+                .variant(
+                    "Tuple",
+                    SchemaTypeEnumVariant::new_tuple(
+                        SchemaTypeTuple::default()
+                            .item(SchemaIdTree::new::<bool>())
+                            .item(SchemaIdTree::new::<usize>()),
+                    ),
+                )
+                .variant(
+                    "Struct",
+                    SchemaTypeEnumVariant::new_struct(
+                        SchemaTypeStruct::default()
+                            .field("text", SchemaIdTree::new::<String>())
+                            .field("scalar", SchemaIdTree::new::<f32>()),
+                    ),
+                ),
+        ),
+    );
+    try_until(
+        100,
+        || {
+            let mut provided = SchemaPackage::default().prefer_tree_id(true);
+            Enum::schema(&mut provided);
+            provided
+        },
+        expected,
+    );
+
+    let mut expected = SchemaPackage::default().prefer_tree_id(true);
+    expected.with(
+        SchemaIdTree::new::<UnitStruct>(),
+        SchemaType::new_struct(SchemaTypeStruct::default()),
+    );
+    expected.with(
+        SchemaIdTree::new::<Enum>(),
+        SchemaType::new_enum(
+            SchemaTypeEnum::default()
+                .variant("Unit", SchemaTypeEnumVariant::Empty)
+                .variant(
+                    "NewType",
+                    SchemaTypeEnumVariant::new_tuple(
+                        SchemaTypeTuple::default().item(SchemaIdTree::new::<UnitStruct>()),
+                    ),
+                )
+                .variant(
+                    "Tuple",
+                    SchemaTypeEnumVariant::new_tuple(
+                        SchemaTypeTuple::default()
+                            .item(SchemaIdTree::new::<bool>())
+                            .item(SchemaIdTree::new::<usize>()),
+                    ),
+                )
+                .variant(
+                    "Struct",
+                    SchemaTypeEnumVariant::new_struct(
+                        SchemaTypeStruct::default()
+                            .field("text", SchemaIdTree::new::<String>())
+                            .field("scalar", SchemaIdTree::new::<f32>()),
+                    ),
+                ),
+        ),
+    );
+    expected.with(
+        SchemaIdTree::new::<NewTypeStruct>(),
+        SchemaType::new_tuple_struct(SchemaTypeTuple::default().item(SchemaIdTree::new::<bool>())),
+    );
+    expected.with(
+        SchemaIdTree::new::<TupleStruct>(),
+        SchemaType::new_tuple_struct(
+            SchemaTypeTuple::default()
+                .item(SchemaIdTree::new::<bool>())
+                .item(SchemaIdTree::new::<usize>()),
+        ),
+    );
+    expected.with(
+        SchemaIdTree::new::<Struct>(),
+        SchemaType::new_struct(
+            SchemaTypeStruct::default()
+                .field("bool_value", SchemaIdTree::new::<bool>())
+                .field("i8_value", SchemaIdTree::new::<i8>())
+                .field("i16_value", SchemaIdTree::new::<i16>())
+                .field("i32_value", SchemaIdTree::new::<i32>())
+                .field("i64_value", SchemaIdTree::new::<i64>())
+                .field("i128_value", SchemaIdTree::new::<i128>())
+                .field("u8_value", SchemaIdTree::new::<u8>())
+                .field("u16_value", SchemaIdTree::new::<u16>())
+                .field("u32_value", SchemaIdTree::new::<u32>())
+                .field("u64_value", SchemaIdTree::new::<u64>())
+                .field("u128_value", SchemaIdTree::new::<u128>())
+                .field("f32_value", SchemaIdTree::new::<f32>())
+                .field("f64_value", SchemaIdTree::new::<f64>())
+                .field("char_value", SchemaIdTree::new::<char>())
+                .field("string_value", SchemaIdTree::new::<String>())
+                .field("tuple", SchemaIdTree::new::<(bool, usize)>())
+                .field("bytes", SchemaIdTree::new::<Vec<u8>>())
+                .field("option", SchemaIdTree::new::<Option<UnitStruct>>())
+                .field("list", SchemaIdTree::new::<Vec<usize>>())
+                .field("set", SchemaIdTree::new::<HashSet<usize>>())
+                .field("string_map", SchemaIdTree::new::<HashMap<String, usize>>())
+                .field("integer_map", SchemaIdTree::new::<HashMap<usize, usize>>())
+                .field("enum_value", SchemaIdTree::new::<Enum>())
+                .field("new_type_struct", SchemaIdTree::new::<NewTypeStruct>())
+                .field("tuple_struct", SchemaIdTree::new::<TupleStruct>()),
+        ),
+    );
+    try_until(
+        100,
+        || {
+            let mut provided = SchemaPackage::default().prefer_tree_id(true);
+            Struct::schema(&mut provided);
+            provided
+        },
+        expected,
     );
 }

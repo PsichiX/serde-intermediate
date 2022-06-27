@@ -21,6 +21,9 @@ pub enum Error {
     CannotRemove(Intermediate),
     /// (value, old size, new size)
     InvalidSize(Intermediate, usize, usize),
+    NoNextTokens,
+    InvalidTokens(String),
+    CannotParse(String),
 }
 
 impl serde::ser::Error for Error {
@@ -53,6 +56,9 @@ impl Display for Error {
             Error::CannotAdd(_) => formatter.write_str("cannot add value here"),
             Error::CannotRemove(_) => formatter.write_str("cannot remove value here"),
             Error::InvalidSize(_, _, _) => formatter.write_str("invalid size here"),
+            Error::NoNextTokens => formatter.write_str("no next tokens"),
+            Error::InvalidTokens(_) => formatter.write_str("invalid tokens"),
+            Error::CannotParse(_) => formatter.write_str("cannot parse"),
         }
     }
 }

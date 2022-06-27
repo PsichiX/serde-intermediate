@@ -1,0 +1,8 @@
+main = _{ SOI ~ value ~ EOI }
+value = { tuple_element | path_element }
+tuple_element = { "(" ~ (value ~ ("," ~ value)* ~ ","?)? ~ ")" }
+path_element = { path ~ args? }
+path = { identifier ~ ("::" ~ identifier)* }
+args = { "<" ~ value ~ ("," ~ value)* ~ ","? ~ ">" }
+identifier = @{ "_"* ~ XID_START ~ XID_CONTINUE* }
+WHITESPACE = _{ " " | "\t" }

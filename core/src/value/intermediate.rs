@@ -291,7 +291,7 @@ impl ReflectIntermediate for Intermediate {
 
 impl std::fmt::Display for Intermediate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let content = crate::to_string_compact(self).map_err(|_|std::fmt::Error)?;
+        let content = crate::to_string_compact(self).map_err(|_| std::fmt::Error)?;
         write!(f, "{}", content)
     }
 }

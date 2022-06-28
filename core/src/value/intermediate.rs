@@ -291,68 +291,8 @@ impl ReflectIntermediate for Intermediate {
 
 impl std::fmt::Display for Intermediate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Unit | Self::UnitStruct => write!(f, "()"),
-            Self::Bool(v) => write!(f, "{}", v),
-            Self::I8(v) => write!(f, "{}", v),
-            Self::I16(v) => write!(f, "{}", v),
-            Self::I32(v) => write!(f, "{}", v),
-            Self::I64(v) => write!(f, "{}", v),
-            Self::I128(v) => write!(f, "{}", v),
-            Self::U8(v) => write!(f, "{}", v),
-            Self::U16(v) => write!(f, "{}", v),
-            Self::U32(v) => write!(f, "{}", v),
-            Self::U64(v) => write!(f, "{}", v),
-            Self::U128(v) => write!(f, "{}", v),
-            Self::F32(v) => write!(f, "{}", v),
-            Self::F64(v) => write!(f, "{}", v),
-            Self::Char(v) => write!(f, "{}", v),
-            Self::String(v) => write!(f, "{}", v),
-            Self::Bytes(v) => f.debug_list().entries(v.iter()).finish(),
-            Self::Option(v) => {
-                if let Some(v) = v.as_ref() {
-                    write!(f, "{}", v)
-                } else {
-                    write!(f, "~")
-                }
-            }
-            Self::UnitVariant(n) => write!(f, "{}", n),
-            Self::NewTypeStruct(v) => write!(f, "{}", v),
-            Self::NewTypeVariant(n, v) => f.debug_tuple(n).field(v).finish(),
-            Self::Seq(v) => f.debug_list().entries(v.iter()).finish(),
-            Self::Tuple(v) | Self::TupleStruct(v) => {
-                let mut f = f.debug_tuple("");
-                for v in v {
-                    f.field(v);
-                }
-                f.finish()
-            }
-            Self::TupleVariant(n, v) => {
-                let mut f = f.debug_tuple(n);
-                for v in v {
-                    f.field(v);
-                }
-                f.finish()
-            }
-            Self::Map(v) => f
-                .debug_map()
-                .entries(v.iter().map(|&(ref k, ref v)| (k, v)))
-                .finish(),
-            Self::Struct(v) => {
-                let mut f = f.debug_struct("");
-                for (k, v) in v {
-                    f.field(k, v);
-                }
-                f.finish()
-            }
-            Self::StructVariant(n, v) => {
-                let mut f = f.debug_struct(n);
-                for (k, v) in v {
-                    f.field(k, v);
-                }
-                f.finish()
-            }
-        }
+        let content = crate::to_string_compact(self).map_err(|_|std::fmt::Error)?;
+        write!(f, "{}", content)
     }
 }
 

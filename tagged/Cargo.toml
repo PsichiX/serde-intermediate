@@ -1,6 +1,6 @@
 [package]
 name = "serde-tagged-intermediate"
-version = "1.5.0"
+version = "1.5.1"
 authors = ["Patryk 'PsichiX' Budzynski <psichix@gmail.com>"]
 edition = "2021"
 description = "Tagged intermediate representation for Serde serialization"

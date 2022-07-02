@@ -59,21 +59,28 @@ where
     );
 }
 
+/// Unit struct.
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
 )]
 struct UnitStruct;
 
+/// New type struct.
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
 )]
-struct NewTypeStruct(bool);
+struct NewTypeStruct(
+    /// Bool value.
+    bool,
+);
 
+/// Tuple struct.
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
 )]
 struct TupleStruct(bool, usize);
 
+/// Enum.
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
 )]
@@ -84,6 +91,7 @@ enum Enum {
     Struct { scalar: f32, text: String },
 }
 
+/// Struct.
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
 )]
@@ -1908,7 +1916,8 @@ fn test_schema() {
     let mut expected = SchemaPackage::default().prefer_tree_id(true);
     expected.with(
         SchemaIdTree::new::<UnitStruct>(),
-        SchemaType::new_struct(SchemaTypeStruct::default()),
+        Schema::new(SchemaType::new_struct(SchemaTypeStruct::default()))
+            .description("Unit struct."),
     );
     assert_eq!(provided, expected);
 
@@ -1917,7 +1926,12 @@ fn test_schema() {
     let mut expected = SchemaPackage::default().prefer_tree_id(true);
     expected.with(
         SchemaIdTree::new::<NewTypeStruct>(),
-        SchemaType::new_tuple_struct(SchemaTypeTuple::default().item(SchemaIdTree::new::<bool>())),
+        Schema::new(SchemaType::new_tuple_struct(
+            SchemaTypeTuple::default().item(
+                SchemaTypeInstance::new(SchemaIdTree::new::<bool>()).description("Bool value."),
+            ),
+        ))
+        .description("New type struct."),
     );
     assert_eq!(provided, expected);
 
@@ -1926,22 +1940,24 @@ fn test_schema() {
     let mut expected = SchemaPackage::default().prefer_tree_id(true);
     expected.with(
         SchemaIdTree::new::<TupleStruct>(),
-        SchemaType::new_tuple_struct(
+        Schema::new(SchemaType::new_tuple_struct(
             SchemaTypeTuple::default()
                 .item(SchemaIdTree::new::<bool>())
                 .item(SchemaIdTree::new::<usize>()),
-        ),
+        ))
+        .description("Tuple struct."),
     );
     assert_eq!(provided, expected);
 
     let mut expected = SchemaPackage::default().prefer_tree_id(true);
     expected.with(
         SchemaIdTree::new::<UnitStruct>(),
-        SchemaType::new_struct(SchemaTypeStruct::default()),
+        Schema::new(SchemaType::new_struct(SchemaTypeStruct::default()))
+            .description("Unit struct."),
     );
     expected.with(
         SchemaIdTree::new::<Enum>(),
-        SchemaType::new_enum(
+        Schema::new(SchemaType::new_enum(
             SchemaTypeEnum::default()
                 .variant("Unit", SchemaTypeEnumVariant::Empty)
                 .variant(
@@ -1966,7 +1982,8 @@ fn test_schema() {
                             .field("scalar", SchemaIdTree::new::<f32>()),
                     ),
                 ),
-        ),
+        ))
+        .description("Enum."),
     );
     try_until(
         100,
@@ -1981,11 +1998,12 @@ fn test_schema() {
     let mut expected = SchemaPackage::default().prefer_tree_id(true);
     expected.with(
         SchemaIdTree::new::<UnitStruct>(),
-        SchemaType::new_struct(SchemaTypeStruct::default()),
+        Schema::new(SchemaType::new_struct(SchemaTypeStruct::default()))
+            .description("Unit struct."),
     );
     expected.with(
         SchemaIdTree::new::<Enum>(),
-        SchemaType::new_enum(
+        Schema::new(SchemaType::new_enum(
             SchemaTypeEnum::default()
                 .variant("Unit", SchemaTypeEnumVariant::Empty)
                 .variant(
@@ -2010,23 +2028,30 @@ fn test_schema() {
                             .field("scalar", SchemaIdTree::new::<f32>()),
                     ),
                 ),
-        ),
+        ))
+        .description("Enum."),
     );
     expected.with(
         SchemaIdTree::new::<NewTypeStruct>(),
-        SchemaType::new_tuple_struct(SchemaTypeTuple::default().item(SchemaIdTree::new::<bool>())),
+        Schema::new(SchemaType::new_tuple_struct(
+            SchemaTypeTuple::default().item(
+                SchemaTypeInstance::new(SchemaIdTree::new::<bool>()).description("Bool value."),
+            ),
+        ))
+        .description("New type struct."),
     );
     expected.with(
         SchemaIdTree::new::<TupleStruct>(),
-        SchemaType::new_tuple_struct(
+        Schema::new(SchemaType::new_tuple_struct(
             SchemaTypeTuple::default()
                 .item(SchemaIdTree::new::<bool>())
                 .item(SchemaIdTree::new::<usize>()),
-        ),
+        ))
+        .description("Tuple struct."),
     );
     expected.with(
         SchemaIdTree::new::<Struct>(),
-        SchemaType::new_struct(
+        Schema::new(SchemaType::new_struct(
             SchemaTypeStruct::default()
                 .field("bool_value", SchemaIdTree::new::<bool>())
                 .field("i8_value", SchemaIdTree::new::<i8>())
@@ -2053,7 +2078,8 @@ fn test_schema() {
                 .field("enum_value", SchemaIdTree::new::<Enum>())
                 .field("new_type_struct", SchemaIdTree::new::<NewTypeStruct>())
                 .field("tuple_struct", SchemaIdTree::new::<TupleStruct>()),
-        ),
+        ))
+        .description("Struct."),
     );
     try_until(
         100,

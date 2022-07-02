@@ -2,12 +2,13 @@ use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{
     parse_macro_input, Attribute, Data, DeriveInput, Fields, GenericArgument, Ident, Lit, Meta,
-    NestedMeta, PathArguments, Type,
+    MetaNameValue, NestedMeta, PathArguments, Type,
 };
 
 #[derive(Debug, Default)]
 struct TypeAttribs {
     package_remote: Vec<String>,
+    docs: String,
 }
 
 #[derive(Debug, Default)]
@@ -15,6 +16,7 @@ struct FieldAttribs {
     ignore: bool,
     package: bool,
     package_traverse: Vec<Ident>,
+    docs: String,
 }
 
 pub fn derive_intermediate(input: TokenStream) -> TokenStream {
@@ -30,6 +32,7 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
             }
         })
         .collect::<Vec<_>>();
+    let description = &attribs.docs;
     let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     match ast.data {
@@ -40,6 +43,7 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                     if attribs.ignore {
                         return None;
                     }
+                    let description = &attribs.docs;
                     let name = field.ident.as_ref().unwrap();
                     let ty = &field.ty;
                     let id = if attribs.package {
@@ -55,7 +59,10 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                     traverse_type(ty, &attribs.package_traverse, &mut package_traverse);
                     Some(quote! {
                         #( #package_traverse )*
-                        content = content.field(stringify!(#name), SchemaTypeInstance::new(#id));
+                        content = content.field(
+                            stringify!(#name),
+                            SchemaTypeInstance::new(#id).description(#description),
+                        );
                     })
                 }).collect::<Vec<_>>();
                 quote! {
@@ -66,7 +73,10 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                             let mut content = SchemaTypeStruct::default();
                             #( #package_remote )*
                             #( #fields )*
-                            package.with(id.to_owned(), Schema::new(SchemaType::new_struct(content)));
+                            package.with(
+                                id.to_owned(),
+                                Schema::new(SchemaType::new_struct(content)).description(#description),
+                            );
                             id
                         }
                     }
@@ -78,6 +88,7 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                     if attribs.ignore {
                         return None;
                     }
+                    let description = &attribs.docs;
                     let ty = &field.ty;
                     let id = if attribs.package {
                         quote! {
@@ -89,7 +100,7 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                         }
                     };
                     Some(quote! {
-                        content = content.item(SchemaTypeInstance::new(#id));
+                        content = content.item(SchemaTypeInstance::new(#id).description(#description));
                     })
                 }).collect::<Vec<_>>();
                 quote! {
@@ -100,7 +111,10 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                             let mut content = SchemaTypeTuple::default();
                             #( #package_remote )*
                             #( #fields )*
-                            package.with(id.to_owned(), Schema::new(SchemaType::new_tuple_struct(content)));
+                            package.with(
+                                id.to_owned(),
+                                Schema::new(SchemaType::new_tuple_struct(content)).description(#description),
+                            );
                             id
                         }
                     }
@@ -113,7 +127,10 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                         let id = SchemaIdContainer::new::<Self>(package.prefer_tree_id);
                         let mut content = SchemaTypeStruct::default();
                         #( #package_remote )*
-                        package.with(id.to_owned(), Schema::new(SchemaType::new_struct(content)));
+                        package.with(
+                            id.to_owned(),
+                            Schema::new(SchemaType::new_struct(content)).description(#description),
+                        );
                         id
                     }
                 }
@@ -134,6 +151,7 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                             if attribs.ignore {
                                 return None;
                             }
+                            let description = &attribs.docs;
                             let name = field.ident.as_ref().unwrap();
                             let ty = &field.ty;
                             let id = if attribs.package {
@@ -146,7 +164,10 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                                 }
                             };
                             Some(quote! {
-                                content = content.field(stringify!(#name), SchemaTypeInstance::new(#id));
+                                content = content.field(
+                                    stringify!(#name),
+                                    SchemaTypeInstance::new(#id).description(#description),
+                                );
                             })
                         }).collect::<Vec<_>>();
                         Some(quote! {
@@ -164,6 +185,7 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                             if attribs.ignore {
                                 return None;
                             }
+                            let description = &attribs.docs;
                             let ty = &field.ty;
                             let id = if attribs.package {
                                 quote! {
@@ -175,7 +197,7 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                                 }
                             };
                             Some(quote! {
-                                content = content.item(SchemaTypeInstance::new(#id));
+                                content = content.item(SchemaTypeInstance::new(#id).description(#description));
                             })
                         }).collect::<Vec<_>>();
                         Some(quote! {
@@ -200,7 +222,10 @@ pub fn derive_intermediate(input: TokenStream) -> TokenStream {
                         let mut content = SchemaTypeEnum::default();
                         #( #package_remote )*
                         #( #variants )*
-                        package.with(id.to_owned(), Schema::new(SchemaType::new_enum(content)));
+                        package.with(
+                            id.to_owned(),
+                            Schema::new(SchemaType::new_enum(content)).description(#description),
+                        );
                         id
                     }
                 }
@@ -219,6 +244,16 @@ fn parse_type_attribs(attrs: &[Attribute]) -> TypeAttribs {
                 attrib.to_token_stream(),
                 error
             ),
+            Ok(Meta::NameValue(MetaNameValue { path, lit, .. })) => {
+                if path.is_ident("doc") {
+                    if let Lit::Str(lit) = lit {
+                        if !result.docs.is_empty() {
+                            result.docs.push('\n');
+                        }
+                        result.docs.push_str(lit.value().trim());
+                    }
+                }
+            }
             Ok(Meta::List(meta)) => {
                 if meta.path.is_ident("schema_intermediate") {
                     for meta in meta.nested {
@@ -249,6 +284,16 @@ fn parse_field_attribs(attrs: &[Attribute]) -> FieldAttribs {
                 attrib.to_token_stream(),
                 error
             ),
+            Ok(Meta::NameValue(MetaNameValue { path, lit, .. })) => {
+                if path.is_ident("doc") {
+                    if let Lit::Str(lit) = lit {
+                        if !result.docs.is_empty() {
+                            result.docs.push('\n');
+                        }
+                        result.docs.push_str(lit.value().trim());
+                    }
+                }
+            }
             Ok(Meta::List(meta)) => {
                 if meta.path.is_ident("schema_intermediate") {
                     for meta in meta.nested {

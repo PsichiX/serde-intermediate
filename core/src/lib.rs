@@ -103,10 +103,10 @@
 //!
 //! More elaborate problems and solutions:
 //!
-//! 1. Versioning (diff/patch) [(test_versioning)](https://github.com/PsichiX/serde-intermediate/blob/master/core/src/tests.rs#L398)
-//! 1. Conversion between data layouts [(test_transform)](https://github.com/PsichiX/serde-intermediate/blob/master/core/src/tests.rs#L726)
-//! 1. DLC / episodic content [(test_dlcs)](https://github.com/PsichiX/serde-intermediate/blob/master/core/src/tests.rs#L828)
-//! 1. Data change communication between game and editor [(test_editor_communication)](https://github.com/PsichiX/serde-intermediate/blob/master/core/src/tests.rs#L1171)
+//! 1. Versioning (diff/patch) [(test_versioning)](https://github.com/PsichiX/serde-intermediate/blob/master/core/src/tests.rs#L440)
+//! 1. Conversion between data layouts [(test_transform)](https://github.com/PsichiX/serde-intermediate/blob/master/core/src/tests.rs#L768)
+//! 1. DLC / episodic content [(test_dlcs)](https://github.com/PsichiX/serde-intermediate/blob/master/core/src/tests.rs#L870)
+//! 1. Data change communication between game and editor [(test_editor_communication)](https://github.com/PsichiX/serde-intermediate/blob/master/core/src/tests.rs#L1213)
 
 #[cfg(test)]
 mod tests;

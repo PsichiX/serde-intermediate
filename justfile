@@ -18,8 +18,8 @@ bench:
 
 checks:
   just build
-  just test
   just clippy
+  just test
 
 docs:
   cargo doc --workspace --no-deps
@@ -34,11 +34,13 @@ list-outdated:
   cargo outdated -R -w
 
 update:
-  cargo update --workspace
+  cargo update --manifest-path ./derive/Cargo.toml --aggressive
+  cargo update --manifest-path ./core/Cargo.toml --aggressive
+  cargo update --manifest-path ./tagged/Cargo.toml --aggressive
 
 publish:
   cargo publish --manifest-path ./derive/Cargo.toml --no-verify
-  sleep 15
+  sleep 1
   cargo publish --manifest-path ./core/Cargo.toml --no-verify
-  sleep 15
+  sleep 1
   cargo publish --manifest-path ./tagged/Cargo.toml --no-verify

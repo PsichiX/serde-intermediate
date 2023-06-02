@@ -202,11 +202,10 @@ fn test_general() {
 }"#;
     assert_eq!(&serialized, expected);
     let serialized = serde_yaml::to_string(&value).unwrap();
-    let expected = r#"---
-value: 42
+    let expected = r#"value: 42
 list:
-  - a
-  - b
+- a
+- b
 "#;
     assert_eq!(&serialized, expected);
     let serialized = ron::to_string(&data).unwrap();

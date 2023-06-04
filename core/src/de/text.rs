@@ -65,6 +65,27 @@ fn parse(ast: Pair<Rule>) -> Result<Intermediate> {
         Rule::f32 => impl_parse!(F32: ast),
         Rule::f64 => impl_parse!(F64: ast),
         Rule::char => impl_parse!(Char: ast),
+        Rule::signed_integer => {
+            let t = ast.as_str();
+            match t.parse() {
+                Ok(value) => Ok(Intermediate::I64(value)),
+                Err(_) => Err(Error::CannotParse(t.to_owned())),
+            }
+        }
+        Rule::unsigned_integer => {
+            let t = ast.as_str();
+            match t.parse() {
+                Ok(value) => Ok(Intermediate::U64(value)),
+                Err(_) => Err(Error::CannotParse(t.to_owned())),
+            }
+        }
+        Rule::real => {
+            let t = ast.as_str();
+            match t.parse() {
+                Ok(value) => Ok(Intermediate::F64(value)),
+                Err(_) => Err(Error::CannotParse(t.to_owned())),
+            }
+        }
         Rule::string => Ok(Intermediate::String(
             ast.into_inner().next().unwrap().as_str().to_owned(),
         )),

@@ -19,7 +19,7 @@
 //!
 //!     Example: data stored in interpreted language runtime value.
 //!
-//! - Support for more interpreted than exact data conversion (_if it quacks like a duck, treat is like a duck_) which is default behavior, optionally force to read exact layout stored in value.
+//! - Support for more interpreted than exact data conversion (_if it quacks like a duck, treat it like a duck_) which is default behavior, optionally force to read exact layout stored in value.
 //!
 //!     Example: more forgiving convertion between unrelated data formats.
 //!
@@ -123,7 +123,7 @@ pub use crate::{
     de::intermediate::{
         deserialize, deserialize as from_intermediate, deserialize_as as from_intermediate_as,
     },
-    de::text::{from_str, intermediate_from_str},
+    de::text::{from_str, from_str_as, intermediate_from_str},
     error::Error,
     reflect::ReflectIntermediate,
     schema::{SchemaIdContainer, SchemaIntermediate, SchemaPackage},

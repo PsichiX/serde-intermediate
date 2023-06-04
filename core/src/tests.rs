@@ -1904,6 +1904,24 @@ fn test_text_format() {
     })
     .unwrap();
     assert_eq!(provided, expected);
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct Foo {
+        a: i8,
+        b: u8,
+        c: f32,
+    }
+
+    let content = "#{a: -42, b: 42, c: 4.2}";
+    let deserialized = crate::from_str::<Foo>(content).unwrap();
+    assert_eq!(
+        deserialized,
+        Foo {
+            a: -42,
+            b: 42,
+            c: 4.2
+        }
+    );
 }
 
 #[test]

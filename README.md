@@ -21,7 +21,7 @@ This crate was made to solve these particular problems:
 
     Example: data stored in interpreted language runtime value.
 
-- Support for more interpreted than exact data conversion (_if it quacks like a duck, treat is like a duck_) which is default behavior, optionally force to read exact layout stored in value.
+- Support for more interpreted than exact data conversion (_if it quacks like a duck, treat it like a duck_) which is default behavior, optionally force to read exact layout stored in value.
 
     Example: more forgiving convertion between unrelated data formats.
 

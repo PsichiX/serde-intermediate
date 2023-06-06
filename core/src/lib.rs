@@ -120,16 +120,19 @@ pub mod value;
 pub mod versioning;
 
 pub use crate::{
-    de::intermediate::{
-        deserialize, deserialize as from_intermediate, deserialize_as as from_intermediate_as,
+    de::{
+        intermediate::{
+            deserialize, deserialize as from_intermediate, deserialize_as as from_intermediate_as,
+        },
+        text::{from_str, from_str_as, intermediate_from_str},
     },
-    de::text::{from_str, from_str_as, intermediate_from_str},
     error::Error,
     reflect::ReflectIntermediate,
     schema::{SchemaIdContainer, SchemaIntermediate, SchemaPackage},
-    ser::intermediate::serialize,
-    ser::intermediate::serialize as to_intermediate,
-    ser::text::{to_string, to_string_compact, to_string_pretty, TextConfig},
+    ser::{
+        text::{to_string, to_string_compact, to_string_pretty, TextConfig},
+        {intermediate::serialize, intermediate::serialize as to_intermediate},
+    },
     value::intermediate::Intermediate,
     versioning::*,
 };

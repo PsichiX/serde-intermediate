@@ -191,6 +191,9 @@ fn test_general() {
         value: 42,
         list: vec!["a".to_owned(), "b".to_owned()],
     };
+    let serialized = crate::serialize(&data).unwrap();
+    let deserialized = crate::deserialize::<Intermediate>(&serialized).unwrap();
+    assert_eq!(serialized, deserialized);
     let value = crate::to_intermediate(&data).unwrap();
     let serialized = serde_json::to_string_pretty(&value).unwrap();
     let expected = r#"{

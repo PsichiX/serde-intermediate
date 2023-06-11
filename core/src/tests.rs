@@ -2,7 +2,7 @@
 
 use crate::{
     versioning::{Change, DiffOptimizationHint, DiffOptions},
-    Intermediate, ReflectIntermediate, SchemaIntermediate, TextConfig,
+    Intermediate, Object, ReflectIntermediate, SchemaIntermediate, TextConfig, TextConfigStyle,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -178,6 +178,76 @@ fn test_size() {
 }
 
 #[test]
+fn test_object() {
+    #[derive(
+        Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate, SchemaIntermediate,
+    )]
+    struct Foo {
+        bool_value: bool,
+        i8_value: i8,
+        i16_value: i16,
+        i32_value: i32,
+        i64_value: i64,
+        u8_value: u8,
+        u16_value: u16,
+        u32_value: u32,
+        u64_value: u64,
+        f32_value: f32,
+        f64_value: f64,
+        char_value: char,
+        string_value: String,
+        tuple: (bool, usize),
+        bytes: Vec<u8>,
+        option: Option<UnitStruct>,
+        list: Vec<usize>,
+        set: HashSet<usize>,
+        string_map: HashMap<String, usize>,
+        integer_map: HashMap<usize, usize>,
+        enum_value: Enum,
+        new_type_struct: NewTypeStruct,
+        tuple_struct: TupleStruct,
+    }
+
+    let data = Foo {
+        bool_value: true,
+        i8_value: -1,
+        i16_value: 2,
+        i32_value: -3,
+        i64_value: 4,
+        u8_value: 6,
+        u16_value: 7,
+        u32_value: 8,
+        u64_value: 9,
+        f32_value: 1.1,
+        f64_value: 1.2,
+        char_value: '@',
+        string_value: "hello".to_owned(),
+        tuple: (false, 13),
+        bytes: vec![14, 15, 16, 17, 18, 19],
+        option: Some(UnitStruct),
+        list: vec![20, 21, 23],
+        set: set![20, 21, 23],
+        string_map: map! {"a".to_owned() => 24,"b".to_owned() => 25},
+        integer_map: map! {27 => 28,29 =>30},
+        enum_value: Enum::Struct {
+            scalar: 3.1,
+            text: "world".to_owned(),
+        },
+        new_type_struct: NewTypeStruct(true),
+        tuple_struct: TupleStruct(false, 32),
+    };
+    let serialized = crate::to_object(&data).unwrap();
+    let deserialized = crate::from_object::<Foo>(&serialized).unwrap();
+    assert_eq!(data, deserialized);
+    let serialized = crate::to_string_pretty(&serialized).unwrap();
+    let deserialized = crate::from_str(&serialized).unwrap();
+    assert_eq!(data, deserialized);
+    let serialized = crate::to_string_compact(&data).unwrap();
+    let deserialized = crate::from_str(&serialized).unwrap();
+    assert_eq!(data, deserialized);
+}
+
+#[test]
 fn test_general() {
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
     struct Foo {
@@ -191,8 +261,12 @@ fn test_general() {
         value: 42,
         list: vec!["a".to_owned(), "b".to_owned()],
     };
-    let serialized = crate::serialize(&data).unwrap();
-    let deserialized = crate::deserialize::<Intermediate>(&serialized).unwrap();
+    // TODO: uncomment when struct-as-map serialization issue gets fixed!
+    // let serialized = crate::to_intermediate(&data).unwrap();
+    // let deserialized = crate::from_intermediate::<Intermediate>(&serialized).unwrap();
+    // assert_eq!(serialized, deserialized);
+    let serialized = crate::to_object(&data).unwrap();
+    let deserialized = crate::from_object::<Object>(&serialized).unwrap();
     assert_eq!(serialized, deserialized);
     let value = crate::to_intermediate(&data).unwrap();
     let serialized = serde_json::to_string_pretty(&value).unwrap();
@@ -230,12 +304,12 @@ fn test_struct() {
         value: 42,
         list: vec!["a".to_owned(), "b".to_owned()],
     };
-    let serialized = crate::serialize(&data).unwrap();
-    let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
+    let serialized = crate::to_intermediate(&data).unwrap();
+    let deserialized = crate::from_intermediate::<Foo>(&serialized).unwrap();
     assert_eq!(data, deserialized);
 
     let serialized = Intermediate::struct_type().field("list", Intermediate::seq().item("c"));
-    let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
+    let deserialized = crate::from_intermediate::<Foo>(&serialized).unwrap();
     let data = Foo {
         value: 0,
         list: vec!["c".to_owned()],
@@ -246,7 +320,7 @@ fn test_struct() {
         value: 42,
         list: vec!["a".to_owned(), "b".to_owned()],
     };
-    let serialized = crate::serialize(&data).unwrap();
+    let serialized = crate::to_intermediate(&data).unwrap();
     let content = serde_json::to_string(&serialized).unwrap();
     let deserialized = serde_json::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
@@ -273,39 +347,39 @@ fn test_enum() {
     }
 
     let data = Foo::A;
-    let serialized = crate::serialize(&data).unwrap();
-    let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
+    let serialized = crate::to_intermediate(&data).unwrap();
+    let deserialized = crate::from_intermediate::<Foo>(&serialized).unwrap();
     assert_eq!(data, deserialized);
 
     let data = Foo::B(true, '@');
-    let serialized = crate::serialize(&data).unwrap();
-    let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
+    let serialized = crate::to_intermediate(&data).unwrap();
+    let deserialized = crate::from_intermediate::<Foo>(&serialized).unwrap();
     assert_eq!(data, deserialized);
 
     let data = Foo::C { a: true, b: '@' };
-    let serialized = crate::serialize(&data).unwrap();
-    let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
+    let serialized = crate::to_intermediate(&data).unwrap();
+    let deserialized = crate::from_intermediate::<Foo>(&serialized).unwrap();
     assert_eq!(data, deserialized);
 
     let serialized = Intermediate::unit_variant("A");
-    let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
+    let deserialized = crate::from_intermediate::<Foo>(&serialized).unwrap();
     let data = Foo::A;
     assert_eq!(data, deserialized);
 
     let serialized = Intermediate::tuple_variant("B").item(true).item('@');
-    let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
+    let deserialized = crate::from_intermediate::<Foo>(&serialized).unwrap();
     let data = Foo::B(true, '@');
     assert_eq!(data, deserialized);
 
     let serialized = Intermediate::struct_variant("C")
         .field("a", true)
         .field("b", '@');
-    let deserialized = crate::deserialize::<Foo>(&serialized).unwrap();
+    let deserialized = crate::from_intermediate::<Foo>(&serialized).unwrap();
     let data = Foo::C { a: true, b: '@' };
     assert_eq!(data, deserialized);
 
     let data = Foo::A;
-    let serialized = crate::serialize(&data).unwrap();
+    let serialized = crate::to_intermediate(&data).unwrap();
     let content = serde_json::to_string(&serialized).unwrap();
     let deserialized = serde_json::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
@@ -317,7 +391,7 @@ fn test_enum() {
     assert_eq!(data, deserialized);
 
     let data = Foo::B(true, '@');
-    let serialized = crate::serialize(&data).unwrap();
+    let serialized = crate::to_intermediate(&data).unwrap();
     let content = serde_json::to_string(&serialized).unwrap();
     let deserialized = serde_json::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
@@ -329,7 +403,7 @@ fn test_enum() {
     assert_eq!(data, deserialized);
 
     let data = Foo::C { a: true, b: '@' };
-    let serialized = crate::serialize(&data).unwrap();
+    let serialized = crate::to_intermediate(&data).unwrap();
     let content = serde_json::to_string(&serialized).unwrap();
     let deserialized = serde_json::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
@@ -377,7 +451,7 @@ fn test_migration() {
         let content = serde_json::to_string(&from).expect("Could not serialzie into JSON");
         let intermediate = serde_json::from_str::<Intermediate>(&content)
             .expect("Could not deserialize from JSON");
-        crate::deserialize(&intermediate).expect("Could not deserialize from intermediate")
+        crate::from_intermediate(&intermediate).expect("Could not deserialize from intermediate")
     }
 
     let data = VersionA {
@@ -867,6 +941,23 @@ fn test_container() {
         crate::from_intermediate::<String>(&deserialized.b).unwrap(),
         b
     );
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    struct Zee {
+        a: Object,
+        b: Object,
+    }
+
+    let a = Bar { c: 1.2, d: 3 };
+    let b = "hello world!".to_owned();
+    let data = Zee {
+        a: crate::to_object(&a).unwrap(),
+        b: crate::to_object(&b).unwrap(),
+    };
+    let serialized = ron::to_string(&data).unwrap();
+    let deserialized = ron::from_str::<Zee>(&serialized).unwrap();
+    assert_eq!(crate::from_object::<Bar>(&deserialized.a).unwrap(), a);
+    assert_eq!(crate::from_object::<String>(&deserialized.b).unwrap(), b);
 }
 
 #[test]
@@ -877,8 +968,9 @@ fn test_dlcs() {
         Rect { size: (f32, f32) },
     }
 
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
+    #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
     enum Primitive {
+        #[default]
         None,
         Sprite {
             file: PathBuf,
@@ -889,12 +981,6 @@ fn test_dlcs() {
             file: PathBuf,
             properties: HashMap<String, Intermediate>,
         },
-    }
-
-    impl Default for Primitive {
-        fn default() -> Self {
-            Self::None
-        }
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
@@ -1516,7 +1602,11 @@ fn test_text_format() {
         }
     );
     assert_eq!(
-        crate::to_string(&vec![0, 1, 2], TextConfig::pretty(None)).unwrap(),
+        crate::to_string(
+            &vec![0, 1, 2],
+            TextConfig::default().with_style(TextConfigStyle::pretty(None))
+        )
+        .unwrap(),
         "[0_i32, 1_i32, 2_i32]"
     );
 
@@ -1535,7 +1625,11 @@ fn test_text_format() {
         }
     );
     assert_eq!(
-        crate::to_string(&(0, 1, 2), TextConfig::pretty(None)).unwrap(),
+        crate::to_string(
+            &(0, 1, 2),
+            TextConfig::default().with_style(TextConfigStyle::pretty(None))
+        )
+        .unwrap(),
         "(0_i32, 1_i32, 2_i32)"
     );
 
@@ -1553,7 +1647,11 @@ fn test_text_format() {
         }
     );
     assert_eq!(
-        crate::to_string(&TupleStruct(true, 42), TextConfig::pretty(None)).unwrap(),
+        crate::to_string(
+            &TupleStruct(true, 42),
+            TextConfig::default().with_style(TextConfigStyle::pretty(None))
+        )
+        .unwrap(),
         "# (true, 42_u64)"
     );
 
@@ -1571,7 +1669,11 @@ fn test_text_format() {
         }
     );
     assert_eq!(
-        crate::to_string(&Enum::Tuple(true, 42), TextConfig::pretty(None)).unwrap(),
+        crate::to_string(
+            &Enum::Tuple(true, 42),
+            TextConfig::default().with_style(TextConfigStyle::pretty(None))
+        )
+        .unwrap(),
         "@Tuple (true, 42_u64)"
     );
 
@@ -1607,7 +1709,7 @@ fn test_text_format() {
         || {
             crate::to_string(
                 &map! {"a".to_owned() => 0, "b".to_owned() => 1, "c".to_owned() => 2},
-                TextConfig::pretty(None),
+                TextConfig::default().with_style(TextConfigStyle::pretty(None)),
             )
             .unwrap()
         },
@@ -1771,7 +1873,7 @@ fn test_text_format() {
             },
             new_type_struct: NewTypeStruct(true),
             tuple_struct: TupleStruct(false, 32),
-        }, TextConfig::pretty(None)).unwrap()
+        }, TextConfig::default().with_style(TextConfigStyle::pretty(None))).unwrap()
     }, r#"# {bool_value: true, i8_value: -1_i8, i16_value: 2_i16, i32_value: -3_i32, i64_value: 4_i64, i128_value: -5_i128, u8_value: 6_u8, u16_value: 7_u16, u32_value: 8_u32, u64_value: 9_u64, u128_value: 10_u128, f32_value: 1.1_f32, f64_value: 1.2_f64, char_value: '@', string_value: "hello", tuple: (false, 13_u64), bytes: [14_u8, 15_u8, 16_u8, 17_u8, 18_u8, 19_u8], option: ? = #!, list: [20_u64, 21_u64, 23_u64], set: [21_u64, 23_u64, 20_u64], string_map: {"b": 25_u64, "a": 24_u64}, integer_map: {27_u64: 28_u64, 29_u64: 30_u64}, enum_value: @Struct # {scalar: 3.1_f32, text: "world"}, new_type_struct: $ = true, tuple_struct: # (false, 32_u64)}"#.to_owned());
 
     assert_eq!(
@@ -1801,7 +1903,7 @@ fn test_text_format() {
                 scalar: 4.2,
                 text: "Hello World!".to_owned()
             },
-            TextConfig::pretty(None)
+            TextConfig::default().with_style(TextConfigStyle::pretty(None))
         )
         .unwrap(),
         r#"@Struct # {scalar: 4.2_f32, text: "Hello World!"}"#

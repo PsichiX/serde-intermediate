@@ -1,6 +1,6 @@
 [package]
 name = "serde-intermediate"
-version = "1.5.5"
+version = "1.6.0"
 authors = ["Patryk 'PsichiX' Budzynski <psichix@gmail.com>"]
 edition = "2021"
 description = "Intermediate representation of Serde serialization"
@@ -17,7 +17,7 @@ derive = ["serde-intermediate-derive"]
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 petgraph = "0.6"
-serde-intermediate-derive = { version = "1.5", path = "../derive", optional = true }
+serde-intermediate-derive = { version = "1.6", path = "../derive", optional = true }
 pest = "2.1"
 pest_derive = "2.1"
 

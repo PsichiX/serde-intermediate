@@ -21,13 +21,13 @@ struct Factory {
 }
 
 fn construct<T: DeserializeOwned + 'static>(data: &Intermediate) -> Result<Box<dyn Any>> {
-    Ok(Box::new(serde_intermediate::deserialize::<T>(data)?) as Box<dyn Any>)
+    Ok(Box::new(serde_intermediate::from_intermediate::<T>(data)?) as Box<dyn Any>)
 }
 
 fn construct_async<T: DeserializeOwned + Send + Sync + 'static>(
     data: &Intermediate,
 ) -> Result<Box<dyn Any + Send + Sync>> {
-    Ok(Box::new(serde_intermediate::deserialize::<T>(data)?) as Box<dyn Any + Send + Sync>)
+    Ok(Box::new(serde_intermediate::from_intermediate::<T>(data)?) as Box<dyn Any + Send + Sync>)
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -143,7 +143,7 @@ impl TaggedIntermediate {
             if let Some(factory) = factories.iter().find(|f| f.type_id == type_id) {
                 return Ok(Self {
                     type_tag: factory.type_tag.to_owned(),
-                    data: serde_intermediate::serialize(&data)?,
+                    data: serde_intermediate::to_intermediate(&data)?,
                 });
             }
         }

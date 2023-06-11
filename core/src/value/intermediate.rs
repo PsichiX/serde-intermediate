@@ -44,9 +44,10 @@ use std::collections::{HashMap, HashSet};
 /// let deserialized = serde_intermediate::from_intermediate(&serialized).unwrap();
 /// assert_eq!(data, deserialized);
 /// ```
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
 pub enum Intermediate {
     /// Unit value: `()`.
+    #[default]
     Unit,
     /// Bool value: `true`.
     Bool(bool),
@@ -140,12 +141,6 @@ pub enum Intermediate {
         /// Fields: `(name, value)`.
         Vec<(String, Self)>,
     ),
-}
-
-impl Default for Intermediate {
-    fn default() -> Self {
-        Self::Unit
-    }
 }
 
 impl Eq for Intermediate {}

@@ -339,17 +339,12 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SchemaTypeEnumVariant {
+    #[default]
     Empty,
     Tuple(SchemaTypeTuple),
     Struct(SchemaTypeStruct),
-}
-
-impl Default for SchemaTypeEnumVariant {
-    fn default() -> Self {
-        Self::Empty
-    }
 }
 
 impl SchemaTypeEnumVariant {

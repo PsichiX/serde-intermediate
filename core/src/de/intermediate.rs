@@ -6,16 +6,11 @@ use serde::{
     forward_to_deserialize_any, Deserialize,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub enum DeserializeMode {
     Exact,
+    #[default]
     Interpret,
-}
-
-impl Default for DeserializeMode {
-    fn default() -> Self {
-        Self::Interpret
-    }
 }
 
 pub fn deserialize<'a, T>(value: &'a Intermediate) -> Result<T>
@@ -123,8 +118,7 @@ impl<'de> serde::de::Deserializer<'de> for Deserializer<'de> {
                         return visitor.visit_newtype_struct(Self::from_intermediate(v, self.mode));
                     }
                 }
-                Intermediate::NewTypeStruct(_) => {}
-                Intermediate::NewTypeVariant(_, v) => {
+                Intermediate::NewTypeStruct(v) | Intermediate::NewTypeVariant(_, v) => {
                     return visitor.visit_newtype_struct(Self::from_intermediate(v, self.mode));
                 }
                 Intermediate::Seq(v)
@@ -630,7 +624,8 @@ impl<'de> Visitor<'de> for IntermediateVisitor {
     }
 
     // TODO: what do we do with this? this obviously can be called, but at least JSON tests don't
-    // do it, have to ask smart ppl what should i do to make it work, since neither serde docs nor book shows how this works for self-describing types.
+    // do it, have to ask smart ppl what should i do to make it work, since neither serde docs nor
+    // book shows how this works for self-describing types.
     // fn visit_enum<A>(self, mut access: A) -> std::result::Result<Self::Value, A::Error>
     // where
     //     A: EnumAccess<'de>,

@@ -3,9 +3,10 @@ use petgraph::{algo::astar, Graph};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Optimization hint used in calculating change between two intermediate data.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub enum DiffOptimizationHint {
     /// Don't assume any optimization.
+    #[default]
     Default,
     /// Put entire new object if change information size is greater than source (old) size.
     SizeSource,
@@ -21,12 +22,6 @@ pub enum DiffOptimizationHint {
         /// Percentage threshold.
         f64,
     ),
-}
-
-impl Default for DiffOptimizationHint {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 /// Change calculation options.

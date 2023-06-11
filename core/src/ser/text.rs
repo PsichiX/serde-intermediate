@@ -22,7 +22,10 @@ pub fn to_vec_pretty<T>(value: &T) -> Result<Vec<u8>>
 where
     T: Serialize + ?Sized,
 {
-    to_vec(value, TextConfig::default_pretty())
+    to_vec(
+        value,
+        TextConfig::default().with_style(TextConfigStyle::default_pretty()),
+    )
 }
 
 pub fn to_string<T>(value: &T, config: TextConfig) -> Result<String>
@@ -43,22 +46,50 @@ pub fn to_string_pretty<T>(value: &T) -> Result<String>
 where
     T: Serialize + ?Sized,
 {
-    to_string(value, TextConfig::default_pretty())
+    to_string(
+        value,
+        TextConfig::default().with_style(TextConfigStyle::default_pretty()),
+    )
 }
 
 #[derive(Debug, Clone)]
-pub enum TextConfig {
-    Default,
-    Pretty { level: usize, indent: Option<usize> },
+pub struct TextConfig {
+    pub style: TextConfigStyle,
+    pub numbers_with_type: bool,
 }
 
 impl Default for TextConfig {
     fn default() -> Self {
-        Self::Default
+        Self {
+            style: TextConfigStyle::Default,
+            numbers_with_type: true,
+        }
     }
 }
 
 impl TextConfig {
+    pub fn with_style(mut self, style: TextConfigStyle) -> Self {
+        self.style = style;
+        self
+    }
+
+    pub fn with_numbers_with_type(mut self, mode: bool) -> Self {
+        self.numbers_with_type = mode;
+        self
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub enum TextConfigStyle {
+    #[default]
+    Default,
+    Pretty {
+        level: usize,
+        indent: Option<usize>,
+    },
+}
+
+impl TextConfigStyle {
     pub fn pretty(indent: Option<usize>) -> Self {
         Self::Pretty { indent, level: 0 }
     }
@@ -97,13 +128,13 @@ where
     }
 
     fn push_level(&mut self) {
-        if let TextConfig::Pretty { level, .. } = &mut self.config {
+        if let TextConfigStyle::Pretty { level, .. } = &mut self.config.style {
             *level += 1;
         }
     }
 
     fn pop_level(&mut self) {
-        if let TextConfig::Pretty { level, .. } = &mut self.config {
+        if let TextConfigStyle::Pretty { level, .. } = &mut self.config.style {
             if *level > 0 {
                 *level -= 1;
             }
@@ -115,7 +146,7 @@ where
     }
 
     fn write_whitespace(&mut self) -> Result<()> {
-        if self.config.is_pretty() {
+        if self.config.style.is_pretty() {
             Self::map_result(write!(&mut self.stream, " "))
         } else {
             Ok(())
@@ -123,7 +154,7 @@ where
     }
 
     fn write_separator(&mut self) -> Result<()> {
-        if let TextConfig::Pretty { indent, .. } = &self.config {
+        if let TextConfigStyle::Pretty { indent, .. } = &self.config.style {
             if indent.is_none() {
                 return self.write_raw(", ");
             }
@@ -133,7 +164,7 @@ where
 
     fn write_new_line_indent(&mut self) -> Result<()> {
         #[allow(clippy::collapsible_match)]
-        if let TextConfig::Pretty { level, indent, .. } = &mut self.config {
+        if let TextConfigStyle::Pretty { level, indent, .. } = &mut self.config.style {
             if let Some(indent) = *indent {
                 Self::map_result(write!(
                     &mut self.stream,

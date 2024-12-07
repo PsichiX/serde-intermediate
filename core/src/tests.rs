@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::{
     versioning::{Change, DiffOptimizationHint, DiffOptions},
     Intermediate, Object, ReflectIntermediate, SchemaIntermediate, TextConfig, TextConfigStyle,
@@ -47,7 +45,7 @@ where
     let mut last = None;
     for _ in 0..tries {
         let provided = provide();
-        if &provided == &expected {
+        if provided == expected {
             return;
         } else {
             last = Some(provided);
@@ -174,7 +172,7 @@ fn test_size() {
 
     let data = Bar::default();
     let serialized = crate::to_intermediate(&data).unwrap();
-    assert_eq!(serialized.total_bytesize(), 728);
+    assert_eq!(serialized.total_bytesize(), 832);
 }
 
 #[test]
@@ -330,6 +328,9 @@ fn test_struct() {
     let content = ron::to_string(&serialized).unwrap();
     let deserialized = ron::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
+    let content = crate::to_string_pretty(&serialized).unwrap();
+    let deserialized = crate::from_str::<Foo>(&content).unwrap();
+    assert_eq!(data, deserialized);
 }
 
 #[test]
@@ -389,6 +390,10 @@ fn test_enum() {
     let content = ron::to_string(&serialized).unwrap();
     let deserialized = ron::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
+    let content = crate::to_string_pretty(&serialized).unwrap();
+    println!("{:?}", content);
+    let deserialized = crate::from_str::<Foo>(&content).unwrap();
+    assert_eq!(data, deserialized);
 
     let data = Foo::B(true, '@');
     let serialized = crate::to_intermediate(&data).unwrap();
@@ -401,6 +406,9 @@ fn test_enum() {
     let content = ron::to_string(&serialized).unwrap();
     let deserialized = ron::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
+    let content = crate::to_string_pretty(&serialized).unwrap();
+    let deserialized = crate::from_str::<Foo>(&content).unwrap();
+    assert_eq!(data, deserialized);
 
     let data = Foo::C { a: true, b: '@' };
     let serialized = crate::to_intermediate(&data).unwrap();
@@ -412,6 +420,9 @@ fn test_enum() {
     assert_eq!(data, deserialized);
     let content = ron::to_string(&serialized).unwrap();
     let deserialized = ron::from_str::<Foo>(&content).unwrap();
+    assert_eq!(data, deserialized);
+    let content = crate::to_string_pretty(&serialized).unwrap();
+    let deserialized = crate::from_str::<Foo>(&content).unwrap();
     assert_eq!(data, deserialized);
 }
 
@@ -1543,13 +1554,20 @@ fn test_text_format() {
     }
 
     assert_eq!(crate::to_string_compact(&true).unwrap(), "true");
+    assert_eq!(crate::to_string_pretty(&true).unwrap(), "true");
 
     assert_eq!(crate::to_string_compact(&42).unwrap(), "42_i32");
+    assert_eq!(crate::to_string_pretty(&42).unwrap(), "42_i32");
 
     assert_eq!(crate::to_string_compact(&'@').unwrap(), "'@'");
+    assert_eq!(crate::to_string_pretty(&'@').unwrap(), "'@'");
 
     assert_eq!(
         crate::to_string_compact("Hello World!").unwrap(),
+        r#""Hello World!""#
+    );
+    assert_eq!(
+        crate::to_string_pretty("Hello World!").unwrap(),
         r#""Hello World!""#
     );
 
@@ -1557,17 +1575,25 @@ fn test_text_format() {
         crate::to_string_compact(&Intermediate::Bytes(b"Hello World!".to_vec())).unwrap(),
         "0x48656c6c6f20576f726c6421"
     );
+    assert_eq!(
+        crate::to_string_pretty(&Intermediate::Bytes(b"Hello World!".to_vec())).unwrap(),
+        "0x48656c6c6f20576f726c6421"
+    );
 
     assert_eq!(crate::to_string_compact(&Option::<()>::None).unwrap(), "?");
+    assert_eq!(crate::to_string_pretty(&Option::<()>::None).unwrap(), "?");
 
     assert_eq!(crate::to_string_compact(&Some(42)).unwrap(), "?=42_i32");
     assert_eq!(crate::to_string_pretty(&Some(42)).unwrap(), "? = 42_i32");
 
     assert_eq!(crate::to_string_compact(&()).unwrap(), "!");
+    assert_eq!(crate::to_string_pretty(&()).unwrap(), "!");
 
     assert_eq!(crate::to_string_compact(&UnitStruct).unwrap(), "#!");
+    assert_eq!(crate::to_string_pretty(&UnitStruct).unwrap(), "#!");
 
-    assert_eq!(crate::to_string_compact(&Enum::Unit).unwrap(), "@Unit");
+    assert_eq!(crate::to_string_compact(&Enum::Unit).unwrap(), "@Unit!");
+    assert_eq!(crate::to_string_pretty(&Enum::Unit).unwrap(), "@Unit !");
 
     assert_eq!(
         crate::to_string_compact(&NewTypeStruct(true)).unwrap(),
@@ -2002,7 +2028,7 @@ fn test_text_format() {
     assert_eq!(provided, expected);
 
     let content = r#"@Struct #{ scalar: 3.1_f32, text: "world" }"#;
-    let provided = crate::intermediate_from_str(&content).unwrap();
+    let provided = crate::intermediate_from_str(content).unwrap();
     let expected = crate::to_intermediate(&Enum::Struct {
         scalar: 3.1,
         text: "world".to_owned(),

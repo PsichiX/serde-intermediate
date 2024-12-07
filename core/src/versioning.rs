@@ -176,7 +176,7 @@ impl Change {
             }
             DiffOptimizationHint::SizePercentage(threshold) => {
                 if self.total_bytesize()
-                    > (threshold.max(0.0).min(1.0) * source.total_bytesize() as f64) as _
+                    > (threshold.clamp(0.0, 1.0) * source.total_bytesize() as f64) as _
                 {
                     Self::Changed(target.to_owned())
                 } else {
@@ -573,7 +573,7 @@ impl Change {
 
     pub fn total_bytesize(&self) -> usize {
         fn string_bytesize(v: &str) -> usize {
-            v.as_bytes().len() * std::mem::size_of::<u8>()
+            std::mem::size_of_val(v.as_bytes())
         }
 
         std::mem::size_of_val(self)

@@ -240,7 +240,7 @@ impl Intermediate {
 
     pub fn total_bytesize(&self) -> usize {
         fn string_bytesize(v: &str) -> usize {
-            v.as_bytes().len() * std::mem::size_of::<u8>()
+            std::mem::size_of_val(v.as_bytes())
         }
 
         std::mem::size_of_val(self)
@@ -552,13 +552,13 @@ impl Serialize for Intermediate {
             },
             Self::UnitStruct => serializer.serialize_unit_struct("Intermediate"),
             Self::UnitVariant(n) => serializer.serialize_unit_variant("Intermediate", 0, unsafe {
-                std::mem::transmute(n.as_str())
+                std::mem::transmute::<&str, &str>(n.as_str())
             }),
             Self::NewTypeStruct(v) => serializer.serialize_newtype_struct("Intermediate", v),
             Self::NewTypeVariant(n, v) => serializer.serialize_newtype_variant(
                 "Intermediate",
                 0,
-                unsafe { std::mem::transmute(n.as_str()) },
+                unsafe { std::mem::transmute::<&str, &str>(n.as_str()) },
                 v,
             ),
             Self::Seq(v) => {
@@ -586,7 +586,7 @@ impl Serialize for Intermediate {
                 let mut tv = serializer.serialize_tuple_variant(
                     "Intermediate",
                     0,
-                    unsafe { std::mem::transmute(n.as_str()) },
+                    unsafe { std::mem::transmute::<&str, &str>(n.as_str()) },
                     v.len(),
                 )?;
                 for item in v {
@@ -604,7 +604,10 @@ impl Serialize for Intermediate {
             Self::Struct(v) => {
                 let mut st = serializer.serialize_struct("Intermediate", v.len())?;
                 for (k, v) in v {
-                    st.serialize_field(unsafe { std::mem::transmute(k.as_str()) }, v)?;
+                    st.serialize_field(
+                        unsafe { std::mem::transmute::<&str, &str>(k.as_str()) },
+                        v,
+                    )?;
                 }
                 st.end()
             }
@@ -612,11 +615,14 @@ impl Serialize for Intermediate {
                 let mut sv = serializer.serialize_struct_variant(
                     "Intermediate",
                     0,
-                    unsafe { std::mem::transmute(n.as_str()) },
+                    unsafe { std::mem::transmute::<&str, &str>(n.as_str()) },
                     v.len(),
                 )?;
                 for (k, v) in v {
-                    sv.serialize_field(unsafe { std::mem::transmute(k.as_str()) }, v)?;
+                    sv.serialize_field(
+                        unsafe { std::mem::transmute::<&str, &str>(k.as_str()) },
+                        v,
+                    )?;
                 }
                 sv.end()
             }

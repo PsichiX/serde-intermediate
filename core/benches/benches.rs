@@ -129,7 +129,7 @@ fn patching(c: &mut Criterion) {
         };
         b.iter(|| {
             let mut target = input_a.to_owned();
-            let _ = target.patch_change(black_box(change));
+            target.patch_change(black_box(change));
         })
     });
 }
@@ -165,7 +165,7 @@ fn patching_optimized(c: &mut Criterion) {
         };
         b.iter(|| {
             let mut target = input_a.to_owned();
-            let _ = target.patch_change(black_box(change));
+            target.patch_change(black_box(change));
         })
     });
 }

@@ -364,19 +364,19 @@ impl Serialize for Object {
             },
             Self::Variant { name, value } => match &**value {
                 Variant::Unit => serializer.serialize_unit_variant("Object", 0, unsafe {
-                    std::mem::transmute(name.as_str())
+                    std::mem::transmute::<&str, &str>(name.as_str())
                 }),
                 Variant::Wrapper(v) => serializer.serialize_newtype_variant(
                     "Object",
                     0,
-                    unsafe { std::mem::transmute(name.as_str()) },
+                    unsafe { std::mem::transmute::<&str, &str>(name.as_str()) },
                     v,
                 ),
                 Variant::Array(v) => {
                     let mut tv = serializer.serialize_tuple_variant(
                         "Object",
                         0,
-                        unsafe { std::mem::transmute(name.as_str()) },
+                        unsafe { std::mem::transmute::<&str, &str>(name.as_str()) },
                         v.len(),
                     )?;
                     for item in v {
@@ -388,11 +388,14 @@ impl Serialize for Object {
                     let mut sv = serializer.serialize_struct_variant(
                         "Object",
                         0,
-                        unsafe { std::mem::transmute(name.as_str()) },
+                        unsafe { std::mem::transmute::<&str, &str>(name.as_str()) },
                         v.len(),
                     )?;
                     for (k, v) in v {
-                        sv.serialize_field(unsafe { std::mem::transmute(k.as_str()) }, v)?;
+                        sv.serialize_field(
+                            unsafe { std::mem::transmute::<&str, &str>(k.as_str()) },
+                            v,
+                        )?;
                     }
                     sv.end()
                 }

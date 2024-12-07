@@ -53,6 +53,7 @@ macro_rules! impl_reflect {
                 if let Change::Changed(v) = change {
                     match v {
                         $(
+                            #[allow(irrefutable_let_patterns)]
                             Intermediate::$variant(v) => if let Ok(v) = Self::try_from(*v) {
                                 *self = v;
                             }
@@ -70,9 +71,10 @@ macro_rules! impl_reflect {
                 if let Change::Changed(v) = change {
                     match v {
                         $(
+                            #[allow(irrefutable_let_patterns)]
                             Intermediate::$variant(v) => if let Ok(v) = <$cast>::try_from(*v) {
                                 if let Ok(v) = Self::try_from(v) {
-                                    *self = v;
+                                    *self = v.into();
                                 }
                             }
                         )+
@@ -131,11 +133,7 @@ impl ReflectIntermediate for String {
     fn patch_change(&mut self, change: &Change) {
         if let Change::Changed(v) = change {
             match v {
-                Intermediate::Char(v) => {
-                    if let Ok(v) = Self::try_from(*v) {
-                        *self = v;
-                    }
-                }
+                Intermediate::Char(v) => *self = v.to_string(),
                 Intermediate::String(v) => *self = v.to_owned(),
                 _ => {}
             }
@@ -147,16 +145,8 @@ impl ReflectIntermediate for PathBuf {
     fn patch_change(&mut self, change: &Change) {
         if let Change::Changed(v) = change {
             match v {
-                Intermediate::Char(v) => {
-                    if let Ok(v) = Self::try_from(v.to_string()) {
-                        *self = v;
-                    }
-                }
-                Intermediate::String(v) => {
-                    if let Ok(v) = Self::try_from(v) {
-                        *self = v;
-                    }
-                }
+                Intermediate::Char(v) => *self = v.to_string().into(),
+                Intermediate::String(v) => *self = v.into(),
                 _ => {}
             }
         }
@@ -195,7 +185,7 @@ where
     fn patch_change(&mut self, change: &Change) {
         match change {
             Change::Changed(Intermediate::Seq(v)) => {
-                if let Some(v) = v.get(0) {
+                if let Some(v) = v.first() {
                     if let Ok(v) = from_intermediate(v) {
                         self.0 = v;
                     }

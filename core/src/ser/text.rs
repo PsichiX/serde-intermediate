@@ -288,7 +288,9 @@ where
         variant: &'static str,
     ) -> Result<Self::Ok> {
         self.write_raw("@")?;
-        self.write_raw(variant)
+        self.write_raw(variant)?;
+        self.write_whitespace()?;
+        self.write_raw("!")
     }
 
     fn serialize_newtype_struct<T>(self, _: &'static str, value: &T) -> Result<Self::Ok>
@@ -422,7 +424,7 @@ where
     first: bool,
 }
 
-impl<'a, W> serde::ser::SerializeSeq for SeqSerializer<'a, W>
+impl<W> serde::ser::SerializeSeq for SeqSerializer<'_, W>
 where
     W: Write,
 {
@@ -457,7 +459,7 @@ where
     first: bool,
 }
 
-impl<'a, W> serde::ser::SerializeTuple for TupleSerializer<'a, W>
+impl<W> serde::ser::SerializeTuple for TupleSerializer<'_, W>
 where
     W: Write,
 {
@@ -492,7 +494,7 @@ where
     first: bool,
 }
 
-impl<'a, W> serde::ser::SerializeTupleStruct for TupleStructSerializer<'a, W>
+impl<W> serde::ser::SerializeTupleStruct for TupleStructSerializer<'_, W>
 where
     W: Write,
 {
@@ -527,7 +529,7 @@ where
     first: bool,
 }
 
-impl<'a, W> serde::ser::SerializeTupleVariant for TupleVariantSerializer<'a, W>
+impl<W> serde::ser::SerializeTupleVariant for TupleVariantSerializer<'_, W>
 where
     W: Write,
 {
@@ -562,7 +564,7 @@ where
     first: bool,
 }
 
-impl<'a, W> serde::ser::SerializeMap for MapSerializer<'a, W>
+impl<W> serde::ser::SerializeMap for MapSerializer<'_, W>
 where
     W: Write,
 {
@@ -623,7 +625,7 @@ where
     first: bool,
 }
 
-impl<'a, W> serde::ser::SerializeStruct for StructSerializer<'a, W>
+impl<W> serde::ser::SerializeStruct for StructSerializer<'_, W>
 where
     W: Write,
 {
@@ -661,7 +663,7 @@ where
     first: bool,
 }
 
-impl<'a, W> serde::ser::SerializeStructVariant for StructVariantSerializer<'a, W>
+impl<W> serde::ser::SerializeStructVariant for StructVariantSerializer<'_, W>
 where
     W: Write,
 {

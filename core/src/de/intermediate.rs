@@ -127,7 +127,7 @@ impl<'de> serde::de::Deserializer<'de> for Deserializer<'de> {
                 | Intermediate::TupleVariant(_, v) => {
                     if v.len() == 1 {
                         return visitor.visit_newtype_struct(Self::from_intermediate(
-                            v.get(0).unwrap(),
+                            v.first().unwrap(),
                             self.mode,
                         ));
                     }
@@ -135,7 +135,7 @@ impl<'de> serde::de::Deserializer<'de> for Deserializer<'de> {
                 Intermediate::Map(v) => {
                     if v.len() == 1 {
                         return visitor.visit_newtype_struct(Self::from_intermediate(
-                            &v.get(0).unwrap().1,
+                            &v.first().unwrap().1,
                             self.mode,
                         ));
                     }
@@ -143,7 +143,7 @@ impl<'de> serde::de::Deserializer<'de> for Deserializer<'de> {
                 Intermediate::Struct(v) | Intermediate::StructVariant(_, v) => {
                     if v.len() == 1 {
                         return visitor.visit_newtype_struct(Self::from_intermediate(
-                            &v.get(0).unwrap().1,
+                            &v.first().unwrap().1,
                             self.mode,
                         ));
                     }
@@ -170,7 +170,7 @@ impl<'de> serde::de::Deserializer<'de> for Deserializer<'de> {
                 }
                 Intermediate::Map(v) => {
                     if v.len() == 1 {
-                        let (k, v) = v.get(0).unwrap();
+                        let (k, v) = v.first().unwrap();
                         if let Intermediate::String(k) = k {
                             if variants.contains(&k.as_str()) {
                                 match v {
@@ -211,7 +211,7 @@ impl<'de> serde::de::Deserializer<'de> for Deserializer<'de> {
                 }
                 Intermediate::Struct(v) => {
                     if v.len() == 1 {
-                        let (k, v) = v.get(0).unwrap();
+                        let (k, v) = v.first().unwrap();
                         if variants.contains(&k.as_str()) {
                             match v {
                                 Intermediate::Seq(v)

@@ -121,7 +121,10 @@ pub mod versioning;
 
 pub use crate::{
     de::{
-        intermediate::{deserialize as from_intermediate, deserialize_as as from_intermediate_as},
+        intermediate::{
+            deserialize as from_intermediate, deserialize_as as from_intermediate_as,
+            DeserializeMode,
+        },
         object::deserialize as from_object,
         text::{from_str, from_str_as, intermediate_from_str},
     },

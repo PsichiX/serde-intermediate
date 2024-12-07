@@ -1,4 +1,3 @@
-#![cfg(test)]
 use crate::*;
 
 #[test]
@@ -29,11 +28,11 @@ fn test_remote() {
         }
     }
 
-    impl Into<FooDef> for Foo {
-        fn into(self) -> FooDef {
+    impl From<Foo> for FooDef {
+        fn from(val: Foo) -> Self {
             FooDef {
-                a: TaggedIntermediate::encode(&self.a).unwrap(),
-                b: TaggedIntermediate::encode(&self.b).unwrap(),
+                a: TaggedIntermediate::encode(&val.a).unwrap(),
+                b: TaggedIntermediate::encode(&val.b).unwrap(),
             }
         }
     }

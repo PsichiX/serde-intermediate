@@ -17,6 +17,7 @@ bench:
   cargo bench --all
 
 checks:
+  just format
   just build
   just clippy
   just test

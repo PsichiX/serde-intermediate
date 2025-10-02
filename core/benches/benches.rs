@@ -1,8 +1,9 @@
 mod types;
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use rand::{rngs::StdRng, SeedableRng};
 use serde_intermediate::{Change, DiffOptimizationHint, DiffOptions, ReflectIntermediate};
+use std::hint::black_box;
 use types::*;
 
 fn randomizer() -> StdRng {
@@ -40,7 +41,8 @@ fn serialize(c: &mut Criterion) {
     });
     c.bench_function("Serialize Bincode", |b| {
         b.iter(|| {
-            let _ = bincode::serialize(black_box(input)).unwrap();
+            let _ = bincode::serde::encode_to_vec(black_box(input), bincode::config::standard())
+                .unwrap();
         })
     });
     c.bench_function("Serialize Intermediate", |b| {
@@ -85,9 +87,13 @@ fn deserialize(c: &mut Criterion) {
         })
     });
     c.bench_function("Deserialize Bincode", |b| {
-        let input = &bincode::serialize(input).unwrap();
+        let input = &bincode::serde::encode_to_vec(input, bincode::config::standard()).unwrap();
         b.iter(|| {
-            let _ = bincode::deserialize::<Account>(black_box(input)).unwrap();
+            let _ = bincode::serde::decode_from_slice::<Account, _>(
+                black_box(input),
+                bincode::config::standard(),
+            )
+            .unwrap();
         })
     });
     c.bench_function("Deserialize Intermediate", |b| {

@@ -973,12 +973,6 @@ fn test_container() {
 
 #[test]
 fn test_dlcs() {
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
-    enum ColliderKind {
-        Circle { radius: f32 },
-        Rect { size: (f32, f32) },
-    }
-
     #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, ReflectIntermediate)]
     enum Primitive {
         #[default]

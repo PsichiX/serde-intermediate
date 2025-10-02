@@ -26,14 +26,14 @@ impl Generate for LoginMethod {
     where
         R: Rng,
     {
-        match rng.gen_range::<usize, _>(0..4) {
+        match rng.random_range::<usize, _>(0..4) {
             0 => {
                 let users = ["john", "malkovitch", "rocks"];
                 let domains = ["gmail.com", "hotmail.com"];
                 Self::Email {
                     user: users.choose(rng).unwrap().to_string(),
                     domain: domains.choose(rng).unwrap().to_string(),
-                    password_hash: rng.gen(),
+                    password_hash: rng.random(),
                 }
             }
             1 => {
@@ -44,7 +44,7 @@ impl Generate for LoginMethod {
                 let users = ["john", "malkovitch", "rocks"];
                 Self::Twitter(users.choose(rng).unwrap().to_string())
             }
-            3 => Self::Facebook(rng.gen()),
+            3 => Self::Facebook(rng.random::<u64>() as usize),
             _ => unreachable!(),
         }
     }
@@ -62,8 +62,8 @@ impl Generate for Buff {
         R: Rng,
     {
         Self {
-            multiplier: rng.gen_range(0.5..1.5),
-            relative: rng.gen_range(-2.0..2.0),
+            multiplier: rng.random_range(0.5..1.5),
+            relative: rng.random_range(-2.0..2.0),
         }
     }
 }
@@ -80,9 +80,9 @@ impl Generate for Item {
         R: Rng,
     {
         let buff_names = ["attack", "defence", "durability"];
-        let count = rng.gen_range(0..100);
+        let count = rng.random_range(0..100);
         Self {
-            id: rng.gen_range(0..5),
+            id: rng.random_range(0..5),
             buffs: std::iter::from_fn(|| {
                 Some((
                     buff_names.choose(rng).unwrap().to_string(),
@@ -106,9 +106,9 @@ impl Generate for Inventory {
     where
         R: Rng,
     {
-        let count = rng.gen_range(0..50);
+        let count = rng.random_range(0..50);
         Self {
-            coins: rng.gen_range(0..1000000),
+            coins: rng.random_range(0..1000000),
             items: std::iter::from_fn(|| Some(Item::generate(rng)))
                 .take(count)
                 .collect(),
@@ -135,12 +135,12 @@ impl Generate for Account {
         let last_names = ["Not", "Great", "Day", "For", "Being", "Creative"];
         Self {
             user_name: user_names.choose(rng).unwrap().to_string(),
-            first_name: if rng.gen() {
+            first_name: if rng.random() {
                 Some(first_names.choose(rng).unwrap().to_string())
             } else {
                 None
             },
-            last_name: if rng.gen() {
+            last_name: if rng.random() {
                 Some(last_names.choose(rng).unwrap().to_string())
             } else {
                 None
